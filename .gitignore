@@ -1,0 +1,28 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local data (never commit real discovery evidence)
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+data/
+
+# Generated test material (may contain private keys)
+fixtures/generated/
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Misc
+.env
+.vscode/
+.idea/
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
