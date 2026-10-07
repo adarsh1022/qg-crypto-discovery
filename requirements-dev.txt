@@ -1,0 +1,3 @@
+# Test-only dependencies. The agent itself is stdlib-only.
+pytest
+cryptography
