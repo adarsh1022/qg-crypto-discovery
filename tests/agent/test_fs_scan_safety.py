@@ -132,14 +132,18 @@ def test_no_key_material_in_records_or_summary(tmp_path, key_name):
 
 
 @pytest.mark.parametrize("key_name", KEY_NAMES)
-def test_pkcs12_and_non_candidate_files_are_never_opened(tmp_path, key_name):
+def test_non_candidate_files_are_never_opened(tmp_path, key_name):
+    # Phase 1d: .pfx/.p12 ARE candidates now (read-only, handled by the key-withholding bridge). The
+    # store.pfx/store.P12 fixtures here hold key *text*, not a real PKCS#12, so they are read as ordinary
+    # text and report no certificate. Files that are not candidates are still never opened.
     key_tree(tmp_path, KEYS[key_name])
     with audited() as events:
         records, _ = run_scan(tmp_path)
     opened = opened_in(events, tmp_path)
-    assert "store.pfx" not in opened and "store.P12" not in opened
     assert "server.key" not in opened and "server.txt" not in opened
-    assert {"combined.pem", "cert_then_key.crt", "key_then_cert.cer", "only.pem"} <= set(opened)
+    assert {"combined.pem", "cert_then_key.crt", "key_then_cert.cer", "only.pem", "store.pfx", "store.P12"} <= set(opened)
+    assert {r["filename"]: r["parse_status"] for r in records if r["filename"].startswith("store")} == {
+        "store.pfx": "no_certificate", "store.P12": "no_certificate"}
     assert_read_only(events, tmp_path)
 
 
@@ -171,16 +175,17 @@ def test_pfx_bytes_never_reach_the_output(tmp_path):
              for enc in (ser.NoEncryption(), ser.BestAvailableEncryption(b"pw"))]
     for i, blob in enumerate(blobs):
         put(tmp_path, f"real{i}.pfx", blob)
-        put(tmp_path, f"disguised{i}.crt", blob)                 # read and sniffed, but never parsed
+        put(tmp_path, f"disguised{i}.crt", blob)                 # detected as PKCS#12 by content
     records, summary = run_scan(tmp_path)
     text = haystack(records, summary)
     import base64
     for blob in blobs:
         assert not pemgen.leaked(text, pemgen.canary_windows(blob.hex(), 32, 2))
         assert not pemgen.leaked(text, pemgen.canary_windows(base64.b64encode(blob).decode(), 32, 2))
-    by = {r["filename"]: r["detail"] for r in records}
-    assert by["real0.pfx"] == by["real1.pfx"] == "pkcs12_not_read"
-    assert by["disguised0.crt"] == by["disguised1.crt"] == "pkcs12_not_handled_yet"
+    by = {r["filename"]: (r["parse_status"], r["detail"]) for r in records}
+    # blob 0 is unprotected (public certificate reported); blob 1 is password-protected (never guessed)
+    assert by["real0.pfx"] == by["disguised0.crt"] == ("ok", None)
+    assert by["real1.pfx"] == by["disguised1.crt"] == ("unsupported", "pkcs12_password_protected")
 
 
 # ---------------------------------------------------------------- read-only proof
@@ -219,9 +224,13 @@ def test_scan_of_a_nonexistent_or_unreadable_setup_still_mutates_nothing(tmp_pat
 
 # ---------------------------------------------------------------- static allowlist
 SCANNER_MODULES = {
-    "fs_scan.py": {"__future__", "datetime", "os", "stat", "time", "cert_file", "observations", "scan_config"},
+    "fs_scan.py": {"__future__", "dataclasses", "datetime", "os", "stat", "time", "cert_file", "observations",
+                   "pfx_bridge", "scan_config"},
     "observations.py": {"__future__", "datetime", "cert_file", "x509_parse"},
     "scan_config.py": {"__future__", "ctypes", "os", "uuid", "dataclasses"},
+    # the only module allowed to start a process (one constant-argv subprocess.run; see test_pfx_bridge.py)
+    "pfx_bridge.py": {"__future__", "base64", "binascii", "dataclasses", "json", "os", "re", "subprocess",
+                      "cert_file", "der", "x509_parse"},
 }
 FORBIDDEN_ATTRS = {"remove", "unlink", "rename", "replace", "rmdir", "removedirs", "mkdir", "makedirs",
                    "write", "writelines", "write_bytes", "write_text", "truncate", "chmod", "chown", "utime",
@@ -243,7 +252,7 @@ def test_scanner_modules_import_only_what_they_need(module):
     assert imported <= SCANNER_MODULES[module], imported - SCANNER_MODULES[module]
 
 
-@pytest.mark.parametrize("module", ["fs_scan.py", "observations.py"])
+@pytest.mark.parametrize("module", ["fs_scan.py", "observations.py", "pfx_bridge.py"])
 def test_scanner_modules_contain_no_write_or_outbound_calls(module):
     tree = ast.parse((pathlib.Path("agent") / module).read_text(encoding="utf-8"))
     opens = 0
@@ -258,6 +267,8 @@ def test_scanner_modules_contain_no_write_or_outbound_calls(module):
                 assert len(node.args) >= 2 and isinstance(node.args[1], ast.Constant) \
                     and node.args[1].value == "rb", f"{module}: open() must be called with mode 'rb'"
         elif isinstance(func, ast.Attribute):
+            if func.attr == "replace" and isinstance(func.value, ast.Name) and func.value.id == "dataclasses":
+                continue                      # dataclasses.replace builds a new value object; it is not str.replace
             assert func.attr not in FORBIDDEN_ATTRS, f"{module}: call to .{func.attr}()"
     assert opens == (1 if module == "fs_scan.py" else 0)
 

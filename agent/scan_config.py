@@ -13,7 +13,6 @@ import uuid
 from dataclasses import dataclass, fields
 
 DEFAULT_EXTENSIONS = (".pem", ".crt", ".cer", ".cert", ".der", ".pfx", ".p12")
-PKCS12_EXTENSIONS = frozenset({".pfx", ".p12"})
 DEFAULT_EXCLUDE_DIR_NAMES = ("$Recycle.Bin", "System Volume Information", "WinSxS", ".git",
                              "node_modules")
 

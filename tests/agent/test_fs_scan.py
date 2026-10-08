@@ -148,26 +148,34 @@ def test_misnamed_formats_flag_the_extension_mismatch(tmp_path):
     assert flags == {"der_named_pem.pem": True, "pem_named_der.der": True, "fine.crt": False}
 
 
-def test_pkcs12_extensions_are_reported_without_being_opened(tmp_path, open_spy):
+def test_pkcs12_extensions_are_read_and_their_public_certificates_reported(tmp_path, open_spy, monkeypatch):
+    # Phase 1d: .pfx/.p12 are now read (read-only) and their PUBLIC certificates reported. This PFX keeps
+    # its certificate in a plain container, so no PowerShell is needed (and none may be started).
+    from agent import pfx_bridge
+    monkeypatch.setattr(pfx_bridge, "_run_powershell",
+                        lambda *a, **k: pytest.fail("a plain-container PFX must not start PowerShell"))
     cert = x509.load_der_x509_certificate(RSA)
     pfx = pkcs12.serialize_key_and_certificates(b"n", certgen.key("rsa2048"), cert, None, ser.NoEncryption())
     put(tmp_path, "server.pfx", pfx)
     put(tmp_path, "CLIENT.P12", pfx)
     open_spy.clear()
     records, summary = run_scan(tmp_path)
-    assert [(r["filename"], r["format"], r["parse_status"], r["detail"]) for r in records] == [
-        ("CLIENT.P12", "pkcs12", "unsupported", "pkcs12_not_read"),
-        ("server.pfx", "pkcs12", "unsupported", "pkcs12_not_read")]
-    assert open_spy == [] and summary["files_read"] == 0 and summary["candidate_files"] == 2
+    assert [(r["filename"], r["format"], r["parse_status"], r["detail"], r["sha256"]) for r in records] == [
+        ("CLIENT.P12", "pkcs12", "ok", None, FP[RSA]), ("server.pfx", "pkcs12", "ok", None, FP[RSA])]
+    assert [r["duplicate_in_scan"] for r in records] == [False, True]          # every sighting kept
+    assert all(r["chain_index"] is None for r in records)                      # PFX order is not chain order
+    assert sorted(os.path.basename(p) for p, _ in open_spy) == ["CLIENT.P12", "server.pfx"]
+    assert all(mode == "rb" for _, mode in open_spy)
+    assert summary["files_read"] == 2 and summary["candidate_files"] == 2
 
 
-def test_pkcs12_content_under_a_certificate_extension_is_sniffed_not_parsed(tmp_path):
+def test_pkcs12_content_under_a_certificate_extension_is_detected_by_content(tmp_path):
     cert = x509.load_der_x509_certificate(RSA)
     pfx = pkcs12.serialize_key_and_certificates(b"n", certgen.key("rsa2048"), cert, None, ser.NoEncryption())
     put(tmp_path, "sneaky.crt", pfx)
     (rec,), _ = run_scan(tmp_path)
-    assert (rec["format"], rec["parse_status"], rec["detail"]) == ("pkcs12", "unsupported", "pkcs12_not_handled_yet")
-    assert rec["sha256"] is None
+    assert (rec["format"], rec["parse_status"], rec["detail"], rec["sha256"]) == ("pkcs12", "ok", None, FP[RSA])
+    assert rec["extension_mismatch"] is True and rec["chain_index"] is None
 
 
 def test_hidden_and_dot_directories_are_scanned(tmp_path):

@@ -97,8 +97,11 @@ def records_from_file_parse(path: str, filename: str, scan_root: str, parsed: Fi
     out = []
     for entry in parsed.entries:
         record = blank_record(path, filename, scan_root, parsed.format, stamp)
+        # PKCS#12 order is not chain order (the OS returns certificates in its own order), so no
+        # position is claimed for certificates that came out of a PFX/P12.
         record.update(parse_status=entry.parse_status, detail=entry.detail,
-                      chain_index=entry.index, chain_total=parsed.total_certificates,
+                      chain_index=None if parsed.format == "pkcs12" else entry.index,
+                      chain_total=parsed.total_certificates,
                       extension_mismatch=parsed.extension_mismatch)
         cert = entry.cert
         if cert is not None:

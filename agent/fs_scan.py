@@ -4,16 +4,19 @@ Scan(config).records() walks the configured roots and yields one observation rec
 certificate sighting (see agent/observations.py). Scan(...).summary reports counters, skip
 reasons, errors and why the scan stopped.
 
-What it does not do: write anything, follow links, open PKCS#12 files, talk to a backend,
-attribute owner processes, or judge trust. It is read-only by construction: the only file
-operation is open(path, "rb"), and bytes go straight into parse_cert_bytes and are dropped.
+What it does not do: write anything, follow links, talk to a backend, attribute owner
+processes, or judge trust. It is read-only by construction: the only file operation is
+open(path, "rb"), and bytes go straight into the parsers and are dropped.
 
-Private-key safety: .pfx/.p12 files are never opened; files that are not certificate
-candidates (.key, .csr, ...) are never opened; candidate files are read once and handed to
-the Phase 1b parser, which never decodes, stores or reports non-certificate blocks.
+Private-key safety: files that are not certificate candidates (.key, .csr, ...) are never
+opened; candidate files are read once and handed to the Phase 1b parser, which never decodes,
+stores or reports non-certificate blocks. PKCS#12 content (by sniffing, whatever the file is
+called) goes to agent/pfx_bridge.py, which skips key bags undecoded and never gives a key
+container to the OS (see its docstring for the one documented limitation).
 """
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import os
 import stat
@@ -21,7 +24,8 @@ import time
 
 from .cert_file import parse_cert_bytes
 from .observations import file_record, iso_utc, records_from_file_parse, safe_text
-from .scan_config import PKCS12_EXTENSIONS, ScanConfig
+from .pfx_bridge import read_pkcs12
+from .scan_config import ScanConfig
 
 MAX_LISTED_ERRORS = 1000
 
@@ -273,11 +277,6 @@ class Scan:
         if is_reparse:
             self._skip("reparse_file")
             return
-        if ext in PKCS12_EXTENSIONS:
-            rec = file_record(entry.path, entry.name, scan_root, "pkcs12", iso_utc(self._now()),
-                              "unsupported", "pkcs12_not_read")
-            yield self._emit(rec)
-            return
         if not stat.S_ISREG(st.st_mode):
             self._skip("not_regular_file")
             return
@@ -303,6 +302,9 @@ class Scan:
         try:
             parsed = parse_cert_bytes(data, filename_hint=entry.name,
                                       max_certs=cfg.max_certs_per_file, max_size=cfg.max_file_bytes)
+            if parsed.format == "pkcs12":                      # by content: .pfx, .p12 or any other name
+                parsed = dataclasses.replace(read_pkcs12(data, max_certs=cfg.max_certs_per_file),
+                                             extension_mismatch=parsed.extension_mismatch)
         except Exception:                                      # noqa: BLE001 - per-file isolation
             yield self._file_rec(entry, scan_root, "read_error", "internal_error")
             return
