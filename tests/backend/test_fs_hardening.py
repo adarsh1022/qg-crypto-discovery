@@ -285,8 +285,8 @@ def plan(conn, sql, params):
 
 
 def test_migration_0002_exists_and_is_applied(conn):
-    assert [name for _, name, _ in db._migrations()] == ["0001_initial.sql", "0002_run_issues_lookup.sql"]
-    assert db.latest_version() == 2 == db.schema_version(conn)
+    assert [name for _, name, _ in db._migrations()][:2] == ["0001_initial.sql", "0002_run_issues_lookup.sql"]
+    assert db.schema_version(conn) == db.latest_version() >= 2
     assert index_columns(conn, "idx_run_issues_kind_seq") == ["run_id", "kind", "seq"]
 
 
@@ -306,24 +306,34 @@ def test_the_ingest_path_runs_the_indexed_lookup_statement(conn):
     assert any(statement.startswith(prefix) and statement.endswith("LIMIT 1") for statement in seen)
 
 
-def test_upgrade_from_version_1_keeps_data_and_adds_the_index(tmp_path, monkeypatch):
+def test_upgrade_from_version_2_keeps_data_and_adds_the_later_objects(tmp_path, monkeypatch):
+    """An old database (migrations 0001-0002 only), filled with raw SQL, is upgraded without losing anything."""
     real = db.MIGRATIONS_DIR
-    old = tmp_path / "v1"
+    old = tmp_path / "v2"
     old.mkdir()
-    (old / "0001_initial.sql").write_text((real / "0001_initial.sql").read_text(encoding="utf-8"), encoding="utf-8")
+    for name in ("0001_initial.sql", "0002_run_issues_lookup.sql"):
+        (old / name).write_text((real / name).read_text(encoding="utf-8"), encoding="utf-8")
     path = tmp_path / "upgrade.db"
     monkeypatch.setattr(db, "MIGRATIONS_DIR", old)
     conn = db.open_database(path)
-    assert db.schema_version(conn) == 1
-    run_id = running_run(conn)
-    ingest(conn, run_id, [ok_record(n=1), {"junk": 1}])
+    assert db.schema_version(conn) == 2
+    stamp = "2026-03-01T12:00:00.000Z"
+    conn.execute("INSERT INTO runs (run_id, run_number, type, run_trigger, status, queued_at, started_at) "
+                 "VALUES ('legacy-running', 1, 'filesystem', 'manual', 'running', ?, ?)", (stamp, stamp))
+    conn.execute("INSERT INTO runs (run_id, run_number, type, run_trigger, status, queued_at) "
+                 "VALUES ('legacy-queued', 2, 'filesystem', 'manual', 'queued', ?)", (stamp,))
+    conn.execute("INSERT INTO run_issues (run_id, source, kind, code, seq) VALUES ('legacy-running', 'backend', 'rejected_record', 'x', 1)")
     conn.close()
     monkeypatch.setattr(db, "MIGRATIONS_DIR", real)
     conn = db.open_database(path)
     try:
-        assert db.schema_version(conn) == 2 and index_columns(conn, "idx_run_issues_kind_seq") == ["run_id", "kind", "seq"]
-        assert stored_count(conn) == 1 and stored_count(conn, "run_issues") == 1
-        assert fs_ingest._seq_was_rejected(conn, run_id, 1) and not fs_ingest._seq_was_rejected(conn, run_id, 0)
+        assert db.schema_version(conn) == db.latest_version() >= 3
+        assert index_columns(conn, "idx_run_issues_kind_seq") == ["run_id", "kind", "seq"]
+        assert stored_count(conn, "run_issues") == 1 and stored_count(conn, "runs") == 2
+        assert fs_ingest._seq_was_rejected(conn, "legacy-running", 1) and not fs_ingest._seq_was_rejected(conn, "legacy-running", 0)
+        legacy = conn.execute("SELECT lease_hash, cancel_requested_at, cancel_requested FROM runs WHERE run_id = 'legacy-running'").fetchone()
+        assert tuple(legacy) == (None, None, 0)                                         # no lease: nobody can present one
+        assert runs.fail_run(conn, "legacy-running", now=at(60), code="agent_lost").status == "failed"      # it can still be ended
         assert conn.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
     finally:
         conn.close()

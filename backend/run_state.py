@@ -16,6 +16,17 @@ How a run ends (decide_outcome), from the backend's own counts plus what the age
              re-sent with contradicting content, a count mismatch, or the agent was lost
   completed  everything else: a clean, fully covered scan (finding nothing is still completed)
 The reasons are fixed codes with counts, never OS messages, paths or free text from the agent.
+
+Lease and timeouts (all decisions are made at the request's arrival time, `now`, so they are deterministic):
+
+    age = now - max(last heartbeat, backend start)            # the backend-start floor protects healthy agents across a restart
+    age <= heartbeat_s                          fresh    every agent call is accepted
+    heartbeat_s < age <= heartbeat_s + grace    overdue  still running; ONLY finish is accepted (the finish race window)
+    age >  heartbeat_s + grace                  lost     the backend ends the run (partial with data, otherwise failed)
+
+The window is `finish_grace_s` (seconds, small), not a second timeout: a late heartbeat or batch is refused in it, and
+the run is lost once it has passed. Queued runs fail after `queue_s`. A cancellation request that the agent has not
+answered within `cancel_grace_s` ends the run as partial/cancelled.
 """
 from __future__ import annotations
 
@@ -35,7 +46,7 @@ TRANSITIONS = {
     FAILED: frozenset(),
 }
 
-OUTCOMES = ("finished", "failed", "lost")     # how the agent's part ended
+OUTCOMES = ("finished", "failed", "lost", "cancelled")   # how the agent's part ended ("lost", "cancelled": backend-decided)
 CLEAN_STOP = "completed"                      # Scan.summary["stop_reason"] of a scan that ran to the end
 
 _CODE = re.compile(r"[a-z0-9_]{1,40}")                 # always used with fullmatch: "$" would accept a trailing newline
@@ -76,6 +87,7 @@ class RunState:
     duration_ms: int | None = None
     stop_reason: str | None = None
     cancel_requested: bool = False
+    cancel_requested_at: str | None = None
     record_count: int = 0
     finding_count: int = 0
     rejected_count: int = 0
@@ -120,11 +132,14 @@ class AgentReport:
     truncated_files: int = 0                # certificate bundles cut off by the per-file limit
     count_mismatch: bool = False            # agent's own totals disagree with what the backend stored
     seq_conflicts: int = 0                  # sequence numbers re-sent with content that contradicts what was stored
+    agent_lost: bool = False                # for outcome "cancelled": the agent had also stopped heartbeating
     fatal_code: str | None = None           # short code such as 'capture_unavailable'
 
     def __post_init__(self):
         if self.outcome not in OUTCOMES:
             raise ValueError(f"outcome must be one of {OUTCOMES}")
+        if not isinstance(self.agent_lost, bool):
+            raise ValueError("agent_lost must be a boolean")
         for name in ("roots_not_scanned", "truncated_files", "seq_conflicts"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -157,7 +172,10 @@ def start(run: RunState, now: dt.datetime) -> RunState:
 def heartbeat(run: RunState, now: dt.datetime) -> RunState:
     if run.status != RUNNING:
         raise InvalidTransition(f"cannot heartbeat a {run.status} run")
-    return dataclasses.replace(run, last_heartbeat_at=format_ts(now))
+    stamp = format_ts(now)
+    if run.last_heartbeat_at is not None and stamp < run.last_heartbeat_at:
+        stamp = run.last_heartbeat_at            # requests are timed on arrival and may commit out of order: never go back
+    return dataclasses.replace(run, last_heartbeat_at=stamp)
 
 
 def update_counts(run: RunState, counts: Counts) -> RunState:
@@ -195,7 +213,9 @@ def request_cancel(run: RunState, now: dt.datetime) -> RunState:
     if run.status == QUEUED:
         return fail(run, now, "cancelled")
     if run.status == RUNNING:
-        return dataclasses.replace(run, cancel_requested=True)
+        if run.cancel_requested:
+            return run                           # idempotent: the first request (and its timestamp) stands
+        return dataclasses.replace(run, cancel_requested=True, cancel_requested_at=format_ts(now))
     raise InvalidTransition(f"cannot cancel a {run.status} run")
 
 
@@ -207,6 +227,10 @@ def decide_outcome(counts: Counts, report: AgentReport) -> tuple[str, tuple[str,
         return FAILED, (code,)
     if report.outcome == "lost":
         reasons.append("agent_lost")
+    elif report.outcome == "cancelled":
+        reasons.append("stopped_cancelled")
+        if report.agent_lost:
+            reasons.append("agent_lost")
     elif report.stop_reason is None:
         reasons.append("stop_reason_missing")
     elif report.stop_reason != CLEAN_STOP:
@@ -221,7 +245,8 @@ def decide_outcome(counts: Counts, report: AgentReport) -> tuple[str, tuple[str,
     if report.count_mismatch:
         reasons.append("count_mismatch")
 
-    no_usable_data = counts.records == 0 and (not report.coverage_started or counts.rejected > 0)
+    started = report.coverage_started or report.outcome == "cancelled"        # a cancelled run did start
+    no_usable_data = counts.records == 0 and (not started or counts.rejected > 0)
     if no_usable_data:
         return FAILED, tuple(["no_usable_data"] + reasons)
     return (PARTIAL, tuple(reasons)) if reasons else (COMPLETED, ())
@@ -233,6 +258,8 @@ def finish(run: RunState, now: dt.datetime, counts: Counts, report: AgentReport)
     _require(run, status)
     if report.outcome == "lost":
         stop_reason = "agent_lost"
+    elif report.outcome == "cancelled":
+        stop_reason = "cancelled"
     else:
         stop_reason = report.stop_reason if _CODE.fullmatch(report.stop_reason or "") else None
     if status == FAILED and stop_reason is None:
@@ -242,18 +269,88 @@ def finish(run: RunState, now: dt.datetime, counts: Counts, report: AgentReport)
                                **_count_fields(counts), **_finish_fields(run, now))
 
 
-def expire(run: RunState, now: dt.datetime, *, queue_timeout_s: float, heartbeat_timeout_s: float) -> RunState | None:
-    """Apply timeouts: a run nobody claimed fails; a running run that went silent ends as lost.
+@dataclass(frozen=True)
+class Timeouts:
+    queue_s: float = 120.0                 # a queued run nobody claimed fails after this long
+    heartbeat_s: float = 90.0              # a running run needs a sign of life at least this often
+    finish_grace_s: float = 5.0            # race window after heartbeat_s in which only `finish` is still accepted
+    cancel_grace_s: float | None = 60.0    # a cancellation the agent has not answered within this long is enforced
 
-    Returns the new state, or None if nothing has expired.
-    """
+    def __post_init__(self):
+        for name in ("queue_s", "heartbeat_s"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value < float("inf"):
+                raise ValueError(f"{name} must be a positive finite number")
+        for name, allow_none in (("finish_grace_s", False), ("cancel_grace_s", True)):
+            value = getattr(self, name)
+            if value is None and allow_none:
+                continue
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value < float("inf"):
+                raise ValueError(f"{name} must be a non-negative finite number")
+
+
+FRESH, OVERDUE, LOST = "fresh", "overdue", "lost"
+QUEUE_TIMEOUT, CANCELLED = "queue_timeout", "cancelled"      # (LOST doubles as a verdict kind)
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """What expiry decides for a run: `kind` is QUEUE_TIMEOUT, LOST or CANCELLED."""
+    kind: str
+    agent_lost: bool = False               # CANCELLED only: the heartbeat had also gone stale
+
+
+def _floor(moment: dt.datetime, not_before: dt.datetime | None) -> dt.datetime:
+    return moment if not_before is None or moment >= not_before else not_before
+
+
+def lease_state(run: RunState, now: dt.datetime, timeouts: Timeouts, not_before: dt.datetime | None = None) -> str:
+    """FRESH, OVERDUE or LOST for a running run (see the module docstring for the exact boundaries)."""
+    if run.status != RUNNING:
+        raise InvalidTransition(f"a {run.status} run has no lease to assess")
+    age = now - _floor(parse_ts(run.last_heartbeat_at or run.started_at), not_before)
+    if age <= dt.timedelta(seconds=timeouts.heartbeat_s):
+        return FRESH
+    if age <= dt.timedelta(seconds=timeouts.heartbeat_s + timeouts.finish_grace_s):
+        return OVERDUE
+    return LOST
+
+
+def expiry_verdict(run: RunState, now: dt.datetime, timeouts: Timeouts, not_before: dt.datetime | None = None) -> Verdict | None:
+    """Has this run run out of time? None if not. Pure: the caller applies the verdict (so 2b's finalization is reused)."""
     if run.status == QUEUED:
-        if now - parse_ts(run.queued_at) > dt.timedelta(seconds=queue_timeout_s):
-            return fail(run, now, "agent_not_connected")
+        age = now - _floor(parse_ts(run.queued_at), not_before)
+        return Verdict(QUEUE_TIMEOUT) if age > dt.timedelta(seconds=timeouts.queue_s) else None
+    if run.status != RUNNING:
         return None
-    if run.status == RUNNING:
-        last = parse_ts(run.last_heartbeat_at or run.started_at)
-        if now - last > dt.timedelta(seconds=heartbeat_timeout_s):
-            counts = Counts(run.record_count, run.finding_count, run.rejected_count, run.error_count)
-            return finish(run, now, counts, AgentReport(outcome="lost", coverage_started=run.record_count > 0))
-    return None
+    heartbeat_lost = lease_state(run, now, timeouts, not_before) == LOST
+    if run.cancel_requested:
+        if heartbeat_lost:
+            return Verdict(CANCELLED, agent_lost=True)
+        if timeouts.cancel_grace_s is not None and run.cancel_requested_at is not None:
+            waited = now - _floor(parse_ts(run.cancel_requested_at), not_before)
+            if waited > dt.timedelta(seconds=timeouts.cancel_grace_s):
+                return Verdict(CANCELLED)
+        return None
+    return Verdict(LOST) if heartbeat_lost else None
+
+
+def expire(run: RunState, now: dt.datetime, *, queue_timeout_s: float, heartbeat_timeout_s: float,
+           finish_grace_s: float = 0.0, cancel_grace_s: float | None = None,
+           not_before: dt.datetime | None = None) -> RunState | None:
+    """Apply timeouts to a RunState using only its own counters: a run nobody claimed fails; a silent running run ends
+    as lost (or cancelled, if it was asked to stop). Returns the new state, or None if nothing has expired.
+
+    The filesystem service does not use this: it applies `expiry_verdict` through 2b's finalization so that reasons
+    derived from stored rows (sequence conflicts, ...) are included. This is the same decision for callers that only
+    have the state.
+    """
+    verdict = expiry_verdict(run, now, Timeouts(queue_timeout_s, heartbeat_timeout_s, finish_grace_s, cancel_grace_s), not_before)
+    if verdict is None:
+        return None
+    if verdict.kind == QUEUE_TIMEOUT:
+        return fail(run, now, "agent_not_connected")
+    counts = Counts(run.record_count, run.finding_count, run.rejected_count, run.error_count)
+    if verdict.kind == CANCELLED:
+        return finish(run, now, counts, AgentReport(outcome="cancelled", agent_lost=verdict.agent_lost))
+    return finish(run, now, counts, AgentReport(outcome="lost", coverage_started=run.record_count > 0))

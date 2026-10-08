@@ -35,7 +35,10 @@ Semantics (relied on by tests and by the later API):
 * Batch items.  Each item is a pair (seq, record), given as a tuple or as a two-element list (what JSON
   produces); both are normalised to the same representation before anything is stored.
 * Atomicity.  Each public function runs in one db.transaction. Invalid records are handled inside it;
-  any unexpected error rolls the whole batch back.
+  any unexpected error rolls the whole batch back. Transaction ownership is explicit: `ingest_fs_batch` and
+  `finalize_fs_run` open their own transaction around `ingest_fs_batch_in_tx` / `finalize_fs_run_in_tx`, which do the
+  same work inside a transaction the CALLER holds (they refuse to run without one), so a service can make "check the
+  run, expire it, ingest" one atomic step without any nested-transaction semantics.
 """
 from __future__ import annotations
 
@@ -46,7 +49,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from . import run_state as rs
-from .db import transaction
+from .db import require_transaction, transaction
 from .fs_record import (CERT_COLUMNS, DIRECTORY_LEVEL_ERROR_KINDS, MAX_PATH, OBSERVATION_COLUMNS, RecordRejected,
                         SummaryFacts, ValidRecord, canonical_json, expiring_days_from_config, parse_summary,
                         requested_roots, unreported_roots, validate_fs_record)
@@ -82,29 +85,37 @@ def number_records(records: Iterable[dict], *, start: int = 0) -> list[tuple[int
 # ------------------------------------------------------------------ batch ingestion
 def ingest_fs_batch(conn: sqlite3.Connection, run_id: str, items: Iterable[tuple[int, Any] | list], *,
                     now: dt.datetime) -> BatchResult:
+    pairs = _check_batch(items)                       # a malformed batch is refused before the write lock is taken
+    with transaction(conn):
+        return ingest_fs_batch_in_tx(conn, run_id, pairs, now=now)
+
+
+def ingest_fs_batch_in_tx(conn: sqlite3.Connection, run_id: str, items: Iterable[tuple[int, Any] | list], *,
+                          now: dt.datetime) -> BatchResult:
+    """ingest_fs_batch inside a transaction the caller holds. Normalises the items itself (a no-op if already done)."""
+    require_transaction(conn)
     pairs = _check_batch(items)
     accepted = duplicates = 0
     rejected: list[tuple[int, str]] = []
     conflicts: list[int] = []
     touched_paths: set[str] = set()
-    with transaction(conn):
-        state = _writable_run(conn, run_id)
-        expiring_days = expiring_days_from_config(_run_config(conn, run_id))
-        for seq, record in pairs:
-            outcome = _ingest_one(conn, run_id, seq, record, touched_paths, expiring_days)
-            if outcome == "accepted":
-                accepted += 1
-            elif outcome == "duplicate":
-                duplicates += 1
-            elif outcome == SEQ_CONFLICT:
-                conflicts.append(seq)
-            else:
-                rejected.append((seq, outcome))
-        for path in sorted(touched_paths):
-            _renumber_ordinals(conn, run_id, path)
-        counts = derived_counts(conn, run_id)
-        progress = rs.update_counts(rs.heartbeat(state, now), counts)
-        save_state(conn, run_id, progress, expected_status=rs.RUNNING)
+    state = _writable_run(conn, run_id)
+    expiring_days = expiring_days_from_config(_run_config(conn, run_id))
+    for seq, record in pairs:
+        outcome = _ingest_one(conn, run_id, seq, record, touched_paths, expiring_days)
+        if outcome == "accepted":
+            accepted += 1
+        elif outcome == "duplicate":
+            duplicates += 1
+        elif outcome == SEQ_CONFLICT:
+            conflicts.append(seq)
+        else:
+            rejected.append((seq, outcome))
+    for path in sorted(touched_paths):
+        _renumber_ordinals(conn, run_id, path)
+    counts = derived_counts(conn, run_id)
+    progress = rs.update_counts(rs.heartbeat(state, now), counts)
+    save_state(conn, run_id, progress, expected_status=rs.RUNNING)
     return BatchResult(accepted, duplicates, tuple(rejected), tuple(conflicts))
 
 
@@ -285,28 +296,43 @@ def _distinct_seqs_seen(conn: sqlite3.Connection, run_id: str) -> int:
 
 # ------------------------------------------------------------------ finalization
 def finalize_fs_run(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime, outcome: str = "finished",
-                    summary: Any = None, fatal_code: str | None = None) -> rs.RunState:
+                    summary: Any = None, fatal_code: str | None = None, agent_lost: bool = False) -> rs.RunState:
     """End a running filesystem run and set its final status from the stored evidence.
 
     outcome   'finished'  the agent ended normally (pass its Scan.summary)
               'failed'    the agent reported a fatal failure (fatal_code is a short code)
               'lost'      the agent vanished (no summary)
+              'cancelled' the backend ended a run whose cancellation was never answered (agent_lost: it also went
+                          silent). Always partial: the run did start and was told to stop.
     """
+    _check_outcome(outcome)                           # refuse bad input before the write lock is taken
+    with transaction(conn):
+        return finalize_fs_run_in_tx(conn, run_id, now=now, outcome=outcome, summary=summary, fatal_code=fatal_code,
+                                     agent_lost=agent_lost)
+
+
+def _check_outcome(outcome: str) -> None:
     if outcome not in rs.OUTCOMES:
         raise ValueError(f"outcome must be one of {rs.OUTCOMES}")
+
+
+def finalize_fs_run_in_tx(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime, outcome: str = "finished",
+                          summary: Any = None, fatal_code: str | None = None, agent_lost: bool = False) -> rs.RunState:
+    """finalize_fs_run inside a transaction the caller holds."""
+    require_transaction(conn)
+    _check_outcome(outcome)
     facts = parse_summary(summary) if summary is not None else None
-    with transaction(conn):
-        state = _writable_run(conn, run_id)
-        if facts is not None:
-            _store_agent_errors(conn, run_id, facts)
-        if summary is not None and facts is None:
-            conn.execute("INSERT INTO run_issues (run_id, source, kind, code) VALUES (?, 'backend', 'summary', 'summary_invalid')",
-                         (run_id,))
-        counts = derived_counts(conn, run_id)
-        report = _agent_report(conn, run_id, outcome, facts, counts, fatal_code)
-        final = rs.finish(state, now, counts, report)
-        stored = None if facts is None else canonical_json(facts.stored)
-        save_state(conn, run_id, final, expected_status=rs.RUNNING, agent_summary_json=stored)
+    state = _writable_run(conn, run_id)
+    if facts is not None:
+        _store_agent_errors(conn, run_id, facts)
+    if summary is not None and facts is None:
+        conn.execute("INSERT INTO run_issues (run_id, source, kind, code) VALUES (?, 'backend', 'summary', 'summary_invalid')",
+                     (run_id,))
+    counts = derived_counts(conn, run_id)
+    report = _agent_report(conn, run_id, outcome, facts, counts, fatal_code, agent_lost)
+    final = rs.finish(state, now, counts, report)
+    stored = None if facts is None else canonical_json(facts.stored)
+    save_state(conn, run_id, final, expected_status=rs.RUNNING, agent_summary_json=stored)
     return final
 
 
@@ -316,17 +342,18 @@ def _store_agent_errors(conn: sqlite3.Connection, run_id: str, facts: SummaryFac
 
 
 def _agent_report(conn: sqlite3.Connection, run_id: str, outcome: str, facts: SummaryFacts | None,
-                  counts: rs.Counts, fatal_code: str | None) -> rs.AgentReport:
+                  counts: rs.Counts, fatal_code: str | None, agent_lost: bool = False) -> rs.AgentReport:
     conflicts = seq_conflict_count(conn, run_id)
     if facts is None:
         return rs.AgentReport(outcome=outcome, coverage_started=counts.records > 0, seq_conflicts=conflicts,
-                              fatal_code=fatal_code)
+                              agent_lost=agent_lost, fatal_code=fatal_code)
     return rs.AgentReport(
         outcome=outcome, stop_reason=facts.stop_reason,
         coverage_started=facts.roots_walked > 0 or counts.records > 0,
         roots_not_scanned=facts.roots_not_scanned + _roots_never_reported(conn, run_id, facts),
         truncated_files=facts.bundles_truncated,
-        count_mismatch=_counts_disagree(conn, run_id, facts), seq_conflicts=conflicts, fatal_code=fatal_code)
+        count_mismatch=_counts_disagree(conn, run_id, facts), seq_conflicts=conflicts, agent_lost=agent_lost,
+        fatal_code=fatal_code)
 
 
 def _run_config(conn: sqlite3.Connection, run_id: str) -> dict:

@@ -2,6 +2,7 @@
 import itertools
 
 T_MS = "2026-01-01T00:00:00.000Z"
+LEASE_HASH = "c" * 64
 T_S = "2026-01-01T00:00:00Z"
 SHA_A = "a" * 64
 SHA_B = "b" * 64
@@ -20,6 +21,8 @@ def run_row(**overrides):
     row = dict(run_id=f"run-{n:08d}", run_number=n, type="filesystem", run_trigger="manual", status="queued",
                queued_at=T_MS)
     row.update(overrides)
+    if row["status"] == "running" and "lease_hash" not in overrides:
+        row["lease_hash"] = LEASE_HASH                    # a running run always has an owner (migration 0003)
     return row
 
 

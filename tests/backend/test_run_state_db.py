@@ -63,7 +63,7 @@ def test_the_database_enforces_the_same_transition_table(conn):
     """For all 25 (from, to) pairs: the trigger accepts exactly what run_state.TRANSITIONS allows."""
     shapes = {   # a valid row for each status
         "queued": dict(),
-        "running": dict(started_at="2026-03-01T12:00:01.000Z"),
+        "running": dict(started_at="2026-03-01T12:00:01.000Z", lease_hash="d" * 64),
         "completed": dict(started_at="2026-03-01T12:00:01.000Z", finished_at="2026-03-01T12:00:02.000Z", duration_ms=1000),
         "partial": dict(started_at="2026-03-01T12:00:01.000Z", finished_at="2026-03-01T12:00:02.000Z", duration_ms=1000,
                         error_summary="x"),
@@ -93,7 +93,8 @@ def test_a_terminal_run_cannot_be_reopened_in_the_database(conn):
                          AgentReport(outcome="finished", stop_reason="completed", coverage_started=True))
     run_id = store(conn, finished)
     with pytest.raises(sqlite3.IntegrityError, match="invalid run status transition"):
-        conn.execute("UPDATE runs SET status = 'running', finished_at = NULL, duration_ms = NULL WHERE run_id = ?", (run_id,))
+        conn.execute("UPDATE runs SET status = 'running', lease_hash = ?, finished_at = NULL, duration_ms = NULL WHERE run_id = ?",
+                     ("e" * 64, run_id))
 
 
 def test_a_full_lifecycle_through_the_database(conn):
@@ -103,6 +104,8 @@ def test_a_full_lifecycle_through_the_database(conn):
 
     def save(new):
         columns = new.to_columns()
+        if new.status != "queued":
+            columns["lease_hash"] = "f" * 64              # the claim sets the lease once; later saves repeat the same value
         conn.execute("UPDATE runs SET " + ", ".join(f"{k} = ?" for k in columns) + " WHERE run_id = ?",
                      (*columns.values(), run_id))
         return RunState.from_row(conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone())

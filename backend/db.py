@@ -38,6 +38,10 @@ class OriginMismatch(DatabaseError):
     """The database holds a different kind of data (agent vs sample) than requested."""
 
 
+class TransactionRequired(DatabaseError):
+    """An operation that must run inside its caller's transaction was called without one."""
+
+
 def connect(path, *, busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS) -> sqlite3.Connection:
     if sqlite3.sqlite_version_info < MIN_SQLITE:
         raise DatabaseError(f"SQLite {'.'.join(map(str, MIN_SQLITE))} or newer is required "
@@ -102,6 +106,16 @@ def transaction(conn: sqlite3.Connection):
         conn.execute("ROLLBACK")
         raise
     conn.execute("COMMIT")
+
+
+def require_transaction(conn: sqlite3.Connection) -> None:
+    """Guard for the `*_in_tx` variants: the caller owns the transaction, so there must be one.
+
+    Transactions are never nested or joined implicitly. A function that needs to be part of a larger atomic step takes
+    a connection that already holds a transaction (opened with `transaction()`), and refuses to run without one.
+    """
+    if not conn.in_transaction:
+        raise TransactionRequired("this operation must be called inside a transaction opened by its caller")
 
 
 def migrate(conn: sqlite3.Connection, data_origin_: str = "agent") -> int:
