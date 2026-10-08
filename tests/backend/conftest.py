@@ -1,0 +1,17 @@
+import sys
+from pathlib import Path
+
+import pytest
+
+from backend import db
+
+# Phase 1 test helpers (treegen, pemgen, pfxgen, certgen) live next to the agent tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "agent"))
+
+
+@pytest.fixture
+def conn():
+    """A fresh, fully migrated in-memory database."""
+    connection = db.open_database(":memory:")
+    yield connection
+    connection.close()
