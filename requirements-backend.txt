@@ -1,0 +1,3 @@
+# Backend (FastAPI) dependencies. The agent itself stays stdlib-only.
+fastapi>=0.110,<1
+httpx>=0.27,<1       # test client

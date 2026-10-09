@@ -259,6 +259,16 @@ def start_run_in_tx(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime, 
     return started
 
 
+def heartbeat_run_in_tx(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime) -> rs.RunState:
+    """Record a sign of life (never moves the heartbeat backwards). Whether the lease is still valid is decided by the caller."""
+    require_transaction(conn)
+    current = load_state(conn, run_id)
+    new = rs.heartbeat(current, now)
+    if new != current:
+        save_state(conn, run_id, new, expected_status=current.status)
+    return new
+
+
 def request_cancel(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime) -> rs.RunState:
     """Queued runs fail as 'cancelled'; running runs are flagged so the agent stops and reports a partial result."""
     with transaction(conn):

@@ -13,7 +13,9 @@ How a run ends (decide_outcome), from the backend's own counts plus what the age
   partial    usable data, but discovery coverage is incomplete or the evidence is contested: stopped by a limit or by
              cancellation, a root that was not scanned, a truncated certificate bundle, a file or directory that
              could not be read (access_denied / read_error / listdir / stat), a rejected record, a sequence number
-             re-sent with contradicting content, a count mismatch, or the agent was lost
+             re-sent with contradicting content, a count mismatch, or the agent was lost.
+             A cancelled run is partial even when nothing was stored, whether the backend enforced the cancellation or
+             the agent stopped on request after one was recorded (failed only if every record it sent was rejected).
   completed  everything else: a clean, fully covered scan (finding nothing is still completed)
 The reasons are fixed codes with counts, never OS messages, paths or free text from the agent.
 
@@ -133,13 +135,15 @@ class AgentReport:
     count_mismatch: bool = False            # agent's own totals disagree with what the backend stored
     seq_conflicts: int = 0                  # sequence numbers re-sent with content that contradicts what was stored
     agent_lost: bool = False                # for outcome "cancelled": the agent had also stopped heartbeating
+    cancel_requested: bool = False          # the BACKEND's record that this run was asked to stop (never the agent's claim)
     fatal_code: str | None = None           # short code such as 'capture_unavailable'
 
     def __post_init__(self):
         if self.outcome not in OUTCOMES:
             raise ValueError(f"outcome must be one of {OUTCOMES}")
-        if not isinstance(self.agent_lost, bool):
-            raise ValueError("agent_lost must be a boolean")
+        for name in ("agent_lost", "cancel_requested"):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(f"{name} must be a boolean")
         for name in ("roots_not_scanned", "truncated_files", "seq_conflicts"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -219,6 +223,14 @@ def request_cancel(run: RunState, now: dt.datetime) -> RunState:
     raise InvalidTransition(f"cannot cancel a {run.status} run")
 
 
+def cancelled_on_request(report: AgentReport) -> bool:
+    """Did this run end because it was cancelled? True for the backend's own enforcement ("cancelled") and for an agent that
+    stopped with stop_reason "cancelled" AFTER the backend had recorded a cancel request. An agent's say-so alone does not
+    count: a scan that merely claims to be cancelled gains nothing, so a real failure cannot be dressed up as one."""
+    return report.outcome == "cancelled" or (report.outcome == "finished" and report.stop_reason == "cancelled"
+                                             and report.cancel_requested)
+
+
 def decide_outcome(counts: Counts, report: AgentReport) -> tuple[str, tuple[str, ...]]:
     """(final status, reason codes). Pure. See the module docstring for the rules."""
     reasons: list[str] = []
@@ -245,7 +257,7 @@ def decide_outcome(counts: Counts, report: AgentReport) -> tuple[str, tuple[str,
     if report.count_mismatch:
         reasons.append("count_mismatch")
 
-    started = report.coverage_started or report.outcome == "cancelled"        # a cancelled run did start
+    started = report.coverage_started or cancelled_on_request(report)          # a run that was told to stop did start
     no_usable_data = counts.records == 0 and (not started or counts.rejected > 0)
     if no_usable_data:
         return FAILED, tuple(["no_usable_data"] + reasons)

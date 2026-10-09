@@ -328,3 +328,81 @@ def test_rejected_count_counts_distinct_seqs_even_if_issue_rows_were_duplicated(
     conn.execute("INSERT INTO run_issues (run_id, source, kind, code, seq) VALUES (?, 'backend', 'rejected_record', 'again', 0)", (run_id,))
     assert fs_ingest.derived_counts(conn, run_id).rejected == 1
     assert fs_queries.fs_counts(conn, run_id).rejected == 1
+
+
+# ------------------------------------------------------------------ cancellation ends partial on every path
+def cancel_summary(records, roots=(("C:\\app", "partial"),)):
+    return summary(records, stop_reason="cancelled", roots=roots)
+
+
+def test_cooperative_cancellation_with_zero_observations_is_partial(conn):
+    run_id = running_run(conn)
+    runs.request_cancel(conn, run_id, now=at(4))
+    final = finish(conn, run_id, 0, summary=cancel_summary(0, roots=(("C:\\app", "not_reached"),)))
+    assert final.status == "partial" and final.stop_reason == "cancelled" and final.record_count == 0
+    assert final.error_summary == "stopped_cancelled, roots_not_scanned:1"
+    assert stored(conn, run_id)["agent_summary"]["stop_reason"] == "cancelled"
+
+
+def test_cooperative_cancellation_after_observations_is_partial(conn):
+    run_id = clean_run(conn, 2)
+    runs.request_cancel(conn, run_id, now=at(4))
+    final = finish(conn, run_id, 2, summary=cancel_summary(2))
+    assert final.status == "partial" and final.error_summary == "stopped_cancelled" and final.record_count == 2
+
+
+def test_forced_cancellation_with_zero_observations_is_partial(conn):
+    run_id = running_run(conn)
+    runs.request_cancel(conn, run_id, now=at(4))
+    final = fs_ingest.finalize_fs_run(conn, run_id, now=at(80), outcome="cancelled")
+    assert final.status == "partial" and final.stop_reason == "cancelled" and final.record_count == 0
+
+
+def test_the_three_cancellation_paths_end_the_same_way(conn):
+    outcomes = []
+    for path in ("cooperative", "cooperative_with_data", "forced"):
+        run_id = clean_run(conn, 0 if path != "cooperative_with_data" else 2)
+        runs.request_cancel(conn, run_id, now=at(4))
+        if path == "forced":
+            fs_ingest.finalize_fs_run(conn, run_id, now=at(80), outcome="cancelled")
+        else:
+            finish(conn, run_id, 0 if path == "cooperative" else 2, summary=cancel_summary(0 if path == "cooperative" else 2))
+        run = stored(conn, run_id)
+        outcomes.append((run["status"], run["stop_reason"], run["cancel_requested"]))
+    assert outcomes == [("partial", "cancelled", True)] * 3
+
+
+def test_an_agent_claiming_cancelled_without_any_cancel_request_gets_no_special_treatment(conn):
+    run_id = running_run(conn)
+    final = finish(conn, run_id, 0, summary=cancel_summary(0, roots=(("C:\\app", "not_reached"),)))
+    assert final.status == "failed" and final.error_summary.startswith("no_usable_data")
+    with_data = clean_run(conn, 1)
+    assert finish(conn, with_data, 1, summary=cancel_summary(1)).status == "partial"
+
+
+def test_an_ordinary_agent_failure_stays_failed_even_if_a_cancel_was_requested(conn):
+    run_id = running_run(conn)
+    runs.request_cancel(conn, run_id, now=at(4))
+    final = fs_ingest.finalize_fs_run(conn, run_id, now=at(5), outcome="failed", fatal_code="scan_crashed")
+    assert final.status == "failed" and final.error_summary == "scan_crashed"
+    plain = running_run(conn)
+    assert fs_ingest.finalize_fs_run(conn, plain, now=at(5), outcome="failed", fatal_code="scan_crashed").status == "failed"
+
+
+def test_a_lost_agent_with_nothing_stored_is_failed_not_partial(conn):
+    run_id = running_run(conn)
+    assert fs_ingest.finalize_fs_run(conn, run_id, now=at(200), outcome="lost").status == "failed"
+
+
+def test_nothing_scanned_without_cancellation_is_still_failed(conn):
+    run_id = running_run(conn)
+    final = finish(conn, run_id, 0, summary=summary(0, roots=(("D:\\gone", "not_found"),)))
+    assert final.status == "failed" and final.error_summary == "no_usable_data, roots_not_scanned:1"
+
+
+def test_a_cancelled_run_whose_records_were_all_rejected_is_failed(conn):
+    run_id = running_run(conn)
+    runs.request_cancel(conn, run_id, now=at(4))
+    ingest(conn, run_id, [{"junk": 1}, {"junk": 2}])
+    final = finish(conn, run_id, 2, summary=cancel_summary(2))
+    assert final.status == "failed" and final.error_summary.startswith("no_usable_data")

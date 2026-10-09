@@ -285,3 +285,72 @@ def test_expire_with_a_floor():
     kwargs = dict(queue_timeout_s=120, heartbeat_timeout_s=90, not_before=at(500))
     assert rs.expire(run, at(560), **kwargs) is None
     assert rs.expire(run, at(500 + 90.001), **kwargs).status == "failed"
+
+
+# ------------------------------------------------------------------ cancellation is partial on every path (nothing stored too)
+def cooperative(**fields):
+    base = dict(outcome="finished", stop_reason="cancelled", cancel_requested=True)
+    base.update(fields)
+    return AgentReport(**base)
+
+
+def test_cancelled_on_request_truth_table():
+    assert rs.cancelled_on_request(AgentReport(outcome="cancelled"))                                  # enforced by the backend
+    assert rs.cancelled_on_request(cooperative())                                                     # the agent stopped on request
+    assert not rs.cancelled_on_request(cooperative(cancel_requested=False))                           # its say-so alone is not enough
+    assert not rs.cancelled_on_request(cooperative(stop_reason="completed"))
+    assert not rs.cancelled_on_request(cooperative(stop_reason="time_limit"))
+    assert not rs.cancelled_on_request(AgentReport(outcome="failed", stop_reason="cancelled", cancel_requested=True))
+    assert not rs.cancelled_on_request(AgentReport(outcome="lost", cancel_requested=True))
+
+
+def test_cooperative_cancellation_with_nothing_stored_is_partial():
+    assert rs.decide_outcome(Counts(), cooperative()) == ("partial", ("stopped_cancelled",))
+    assert rs.decide_outcome(Counts(), cooperative(roots_not_scanned=1)) == ("partial", ("stopped_cancelled", "roots_not_scanned:1"))
+
+
+def test_cooperative_and_enforced_cancellation_agree():
+    for counts in (Counts(), Counts(records=4, findings=4), Counts(records=4, errors=2)):
+        enforced = rs.decide_outcome(counts, AgentReport(outcome="cancelled"))
+        assert rs.decide_outcome(counts, cooperative()) == enforced and enforced[0] == "partial"
+
+
+def test_cooperative_cancellation_after_observations_is_partial():
+    assert rs.decide_outcome(Counts(records=3, findings=3), cooperative(coverage_started=True)) == ("partial", ("stopped_cancelled",))
+
+
+def test_an_agent_cannot_turn_a_failure_into_partial_by_calling_it_cancelled():
+    """No cancel request on record: the claim is just another stop reason, and with nothing stored the run has failed."""
+    claim_only = cooperative(cancel_requested=False)
+    status, reasons = rs.decide_outcome(Counts(), claim_only)
+    assert status == "failed" and reasons[0] == "no_usable_data"
+    assert rs.decide_outcome(Counts(records=2), claim_only)[0] == "partial"                           # with data it is a stopped scan
+
+
+def test_ordinary_failures_stay_failed_even_after_a_cancel_request():
+    assert rs.decide_outcome(Counts(), AgentReport(outcome="failed", stop_reason="cancelled", cancel_requested=True,
+                                                   fatal_code="scan_crashed")) == ("failed", ("scan_crashed",))
+    assert rs.decide_outcome(Counts(records=5), AgentReport(outcome="failed", cancel_requested=True))[0] == "failed"
+
+
+def test_a_lost_agent_with_no_data_is_still_failed_unless_the_backend_cancelled_it():
+    assert rs.decide_outcome(Counts(), AgentReport(outcome="lost", cancel_requested=True))[0] == "failed"
+    assert rs.decide_outcome(Counts(), AgentReport(outcome="cancelled", agent_lost=True))[0] == "partial"
+
+
+def test_a_cancelled_run_whose_every_record_was_rejected_has_no_usable_data():
+    assert rs.decide_outcome(Counts(rejected=3), cooperative())[0] == "failed"
+    assert rs.decide_outcome(Counts(rejected=3), AgentReport(outcome="cancelled"))[0] == "failed"
+
+
+def test_cancel_requested_must_be_a_boolean():
+    for bad in (1, "yes", None):
+        with pytest.raises(ValueError):
+            AgentReport(outcome="finished", cancel_requested=bad)
+    assert AgentReport(outcome="finished").cancel_requested is False
+
+
+def test_finishing_a_cooperatively_cancelled_run_with_nothing_stored():
+    run = rs.request_cancel(running(), at(20))
+    done = rs.finish(run, at(30), Counts(), cooperative())
+    assert (done.status, done.stop_reason, done.error_summary) == ("partial", "cancelled", "stopped_cancelled")

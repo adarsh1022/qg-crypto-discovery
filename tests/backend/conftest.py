@@ -15,3 +15,10 @@ def conn():
     connection = db.open_database(":memory:")
     yield connection
     connection.close()
+
+
+@pytest.fixture
+def api(tmp_path):
+    """An application on a temporary database with a controllable clock and the sweeper switched off."""
+    from apifx import make_api
+    return make_api(tmp_path)

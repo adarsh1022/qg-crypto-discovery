@@ -329,7 +329,7 @@ def finalize_fs_run_in_tx(conn: sqlite3.Connection, run_id: str, *, now: dt.date
         conn.execute("INSERT INTO run_issues (run_id, source, kind, code) VALUES (?, 'backend', 'summary', 'summary_invalid')",
                      (run_id,))
     counts = derived_counts(conn, run_id)
-    report = _agent_report(conn, run_id, outcome, facts, counts, fatal_code, agent_lost)
+    report = _agent_report(conn, run_id, outcome, facts, counts, fatal_code, agent_lost, state.cancel_requested)
     final = rs.finish(state, now, counts, report)
     stored = None if facts is None else canonical_json(facts.stored)
     save_state(conn, run_id, final, expected_status=rs.RUNNING, agent_summary_json=stored)
@@ -342,18 +342,19 @@ def _store_agent_errors(conn: sqlite3.Connection, run_id: str, facts: SummaryFac
 
 
 def _agent_report(conn: sqlite3.Connection, run_id: str, outcome: str, facts: SummaryFacts | None,
-                  counts: rs.Counts, fatal_code: str | None, agent_lost: bool = False) -> rs.AgentReport:
+                  counts: rs.Counts, fatal_code: str | None, agent_lost: bool = False,
+                  cancel_requested: bool = False) -> rs.AgentReport:
     conflicts = seq_conflict_count(conn, run_id)
     if facts is None:
         return rs.AgentReport(outcome=outcome, coverage_started=counts.records > 0, seq_conflicts=conflicts,
-                              agent_lost=agent_lost, fatal_code=fatal_code)
+                              agent_lost=agent_lost, cancel_requested=cancel_requested, fatal_code=fatal_code)
     return rs.AgentReport(
         outcome=outcome, stop_reason=facts.stop_reason,
         coverage_started=facts.roots_walked > 0 or counts.records > 0,
         roots_not_scanned=facts.roots_not_scanned + _roots_never_reported(conn, run_id, facts),
         truncated_files=facts.bundles_truncated,
         count_mismatch=_counts_disagree(conn, run_id, facts), seq_conflicts=conflicts, agent_lost=agent_lost,
-        fatal_code=fatal_code)
+        cancel_requested=cancel_requested, fatal_code=fatal_code)
 
 
 def _run_config(conn: sqlite3.Connection, run_id: str) -> dict:
