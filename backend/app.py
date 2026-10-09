@@ -15,6 +15,7 @@ import datetime as dt
 import json
 import logging
 import sqlite3
+import time
 from typing import Callable, Iterator, Literal
 from urllib.parse import urlsplit
 
@@ -24,7 +25,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import api_models as models
-from . import db, errors, fs_ingest, run_state as rs, runs, service
+from . import db, errors, fs_ingest, report_routes, run_state as rs, runs, service
 from .errors import ApiError
 from .safety import sanitize_text
 from .settings import Settings
@@ -275,9 +276,8 @@ def _install_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(sqlite3.Error)
     async def database_error(_: Request, exc: sqlite3.Error):
-        busy = isinstance(exc, sqlite3.OperationalError) and any(w in str(exc).lower() for w in ("locked", "busy"))
         log.error("database error: %s", type(exc).__name__)                    # the class only: messages can quote data
-        return _json(errors.busy() if busy else errors.internal_error())
+        return _json(errors.from_database_error(exc))
 
     @app.exception_handler(Exception)
     async def unexpected(_: Request, exc: Exception):
@@ -304,7 +304,8 @@ async def _sweep_loop(app: FastAPI, interval: float) -> None:
 
 
 # ------------------------------------------------------------------ factory
-def create_app(settings: Settings, *, clock: Callable[[], dt.datetime] = utc_now) -> FastAPI:
+def create_app(settings: Settings, *, clock: Callable[[], dt.datetime] = utc_now,
+               budget_clock: Callable[[], float] = time.monotonic) -> FastAPI:
     db.open_database(settings.db_path, settings.data_origin).close()          # create / migrate once, up front
 
     @contextlib.asynccontextmanager
@@ -321,8 +322,10 @@ def create_app(settings: Settings, *, clock: Callable[[], dt.datetime] = utc_now
     app = FastAPI(title="QuantumGenie local backend", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.clock = clock
+    app.state.budget_clock = budget_clock                 # the report time budget runs on its own (monotonic) clock
     app.state.ctx = service.Context(settings=settings, not_before=clock())
     _install_handlers(app)
+    app.include_router(report_routes.router)            # first: /api/runs/stats must not be read as /api/runs/{run_id}
     app.include_router(router)
     app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_body_bytes)
     app.add_middleware(LocalOnlyMiddleware, allowed_hosts=settings.allowed_hosts, allowed_origins=settings.allowed_origins)

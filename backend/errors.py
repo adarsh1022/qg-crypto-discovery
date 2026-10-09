@@ -9,6 +9,7 @@ caller got wrong. Nothing here ever contains request content, lease tokens or ha
 """
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 
@@ -76,6 +77,10 @@ def run_not_found() -> ApiError:
     return ApiError(404, "run_not_found", "No such run.")
 
 
+def certificate_not_found() -> ApiError:
+    return ApiError(404, "certificate_not_found", "No such certificate.")
+
+
 # ---- 409
 def run_not_claimable(run: dict) -> ApiError:
     return ApiError(409, "run_not_claimable", "Only a queued run can be claimed.", state_details(run))
@@ -103,13 +108,28 @@ def run_not_cancellable(run: dict) -> ApiError:
     return ApiError(409, "run_not_cancellable", "The run has already finished and was not cancelled.", state_details(run))
 
 
+def wrong_run_type(required: str) -> ApiError:
+    return ApiError(409, "wrong_run_type", "This report is not available for this type of run.", {"required_type": required})
+
+
 # ---- 5xx
+def query_timeout(budget_seconds: float) -> ApiError:
+    return ApiError(503, "query_timeout", "The request took too long and was stopped. Narrow the filters and try again.",
+                    {"budget_seconds": budget_seconds}, headers={"Retry-After": "1"})
+
+
 def busy() -> ApiError:
     return ApiError(503, "busy", "The service is busy; retry shortly.", headers={"Retry-After": "1"})
 
 
 def internal_error() -> ApiError:
     return ApiError(500, "internal_error", "Something went wrong on the server.")
+
+
+def from_database_error(exc: Exception) -> ApiError:
+    """The generic answer to a SQLite failure: busy when the database is locked, otherwise internal. No internals."""
+    locked = isinstance(exc, sqlite3.OperationalError) and any(w in str(exc).lower() for w in ("locked", "busy"))
+    return busy() if locked else internal_error()
 
 
 def http_error(status: int) -> ApiError:

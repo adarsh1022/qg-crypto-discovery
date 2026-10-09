@@ -7,6 +7,7 @@ from pathlib import Path
 from .run_state import Timeouts
 
 DEFAULT_ALLOWED_HOSTS = ("127.0.0.1", "localhost", "[::1]")
+MAX_QUERY_BUDGET_S = 300
 
 
 @dataclass(frozen=True)
@@ -20,8 +21,12 @@ class Settings:
     sweep_interval_s: float | None = 15.0               # background expiry of stale runs; None disables the task
     allowed_hosts: tuple[str, ...] = DEFAULT_ALLOWED_HOSTS
     allowed_origins: tuple[str, ...] = ()               # extra browser origins (e.g. a UI dev server) beyond loopback
+    query_budget_s: float = 5.0                         # time one report request may spend (SQL and Python together)
 
     def __post_init__(self):
+        if (isinstance(self.query_budget_s, bool) or not isinstance(self.query_budget_s, (int, float))
+                or not 0 < self.query_budget_s <= MAX_QUERY_BUDGET_S):
+            raise ValueError(f"query_budget_s must be a number above 0 and at most {MAX_QUERY_BUDGET_S}")
         if str(self.db_path) == ":memory:":
             raise ValueError("an in-memory database cannot be shared between requests; use a file")
         for name in ("heartbeat_interval_s",):

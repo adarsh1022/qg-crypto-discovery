@@ -99,6 +99,12 @@ def _int(name: str, value: Any, low: int, high: int) -> int | None:
     return value
 
 
+def _required_int(name: str, value: Any, low: int, high: int) -> int:
+    if value is None:
+        raise InvalidQuery(name, "wrong_type")
+    return _int(name, value, low, high)
+
+
 def _bool(name: str, value: Any) -> bool | None:
     if value is None:
         return None
@@ -411,3 +417,63 @@ def search_unique_certificates(conn: sqlite3.Connection, run_id: str, query: Uni
         f"ORDER BY {_order(UNIQUE_SORTS, query.sort, query.direction, 'c.sha256')} LIMIT :limit OFFSET :offset",
         {**params, "limit": query.limit, "offset": query.offset}).fetchall()
     return Page([_unique_item(r) for r in rows], total, query.limit, query.offset, frontier)
+
+
+# ------------------------------------------------------------------ run issues and certificate detail
+MAX_DETAIL_RUNS = 100            # runs listed in a certificate detail
+MAX_DETAIL_PATHS = 20            # distinct paths listed per run in a certificate detail
+_SHA256 = re.compile(r"[0-9a-f]{64}")
+
+
+def list_issues(conn: sqlite3.Connection, run_id: str, *, limit: int = DEFAULT_LIMIT, offset: int = 0) -> dict:
+    """One page of a run's issues (rejected records, sequence conflicts, agent errors), in internal-id order.
+
+    Ids are assigned in insertion order and rows are never deleted, so an offset never skips or repeats an issue as new
+    ones arrive. The internal id orders the page but is not part of the result. Fixed codes only: backend codes are a
+    closed vocabulary and agent codes were validated against `Name:WinError N` / `Name:errno N` at ingestion.
+    """
+    limit = _required_int("limit", limit, 1, MAX_LIMIT)
+    offset = _required_int("offset", offset, 0, MAX_OFFSET)
+    prepare_snapshot(conn)
+    require_filesystem_run(conn, run_id)
+    total = conn.execute("SELECT COUNT(*) FROM run_issues WHERE run_id = ?", (run_id,)).fetchone()[0]
+    items = [dict(r) for r in conn.execute(
+        "SELECT source, kind, code, path, seq FROM run_issues WHERE run_id = ? ORDER BY id LIMIT ? OFFSET ?", (run_id, limit, offset))]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+def certificate_detail(conn: sqlite3.Connection, sha256: Any) -> dict | None:
+    """A certificate's stored identity and where it was seen, or None for a well-formed but unknown fingerprint.
+
+    `runs` are the runs it appeared in, newest first, at most MAX_DETAIL_RUNS; each lists at most MAX_DETAIL_PATHS
+    distinct paths in binary path order, next to the run's full `paths_count`. Totals (`sightings_total`, `runs_total`,
+    `paths_count`) always describe everything, not just what is listed. The omitted paths are reachable through the run's
+    observations endpoint with `fingerprint=<sha256>`. Everything comes from the caller's snapshot.
+    """
+    if not isinstance(sha256, str):
+        raise InvalidQuery("sha256", "wrong_type")
+    if not _SHA256.fullmatch(sha256):
+        raise InvalidQuery("sha256", "not_a_64_character_lowercase_hex_fingerprint")
+    prepare_snapshot(conn)
+    cert = conn.execute("SELECT sha256, serial_hex, subject, issuer, san_json, key_algorithm, key_size, key_curve, "
+                        "signature_algorithm, not_before, not_after, is_ca FROM certificates WHERE sha256 = ?", (sha256,)).fetchone()
+    if cert is None:
+        return None
+    totals = conn.execute("SELECT COUNT(*), COUNT(DISTINCT run_id) FROM fs_observations WHERE sha256 = ?", (sha256,)).fetchone()
+    listed = conn.execute(
+        "SELECT o.run_id AS run_id, r.run_number AS run_number, COUNT(*) AS sightings, COUNT(DISTINCT o.path) AS paths_count "
+        "FROM fs_observations AS o JOIN runs AS r ON r.run_id = o.run_id WHERE o.sha256 = ? "
+        "GROUP BY o.run_id ORDER BY r.run_number DESC LIMIT ?", (sha256, MAX_DETAIL_RUNS)).fetchall()
+    run_entries = []
+    for run in listed:
+        paths = [r[0] for r in conn.execute(
+            "SELECT DISTINCT path FROM fs_observations WHERE run_id = ? AND sha256 = ? ORDER BY path LIMIT ?",
+            (run["run_id"], sha256, MAX_DETAIL_PATHS))]
+        run_entries.append({"run_id": run["run_id"], "run_number": run["run_number"], "sightings": run["sightings"],
+                            "paths_count": run["paths_count"], "paths": paths,
+                            "paths_truncated": run["paths_count"] > len(paths)})
+    out = dict(cert)
+    out["san"] = json.loads(out.pop("san_json"))
+    out["is_ca"] = None if out["is_ca"] is None else bool(out["is_ca"])
+    out.update(sightings_total=totals[0], runs_total=totals[1], runs_truncated=totals[1] > len(run_entries), runs=run_entries)
+    return out

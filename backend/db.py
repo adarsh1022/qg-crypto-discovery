@@ -148,6 +148,12 @@ class QueryBudget:
             self.expired = True
         return 1 if self.expired else 0
 
+    def check(self) -> None:
+        """For Python-side work between SQL statements, where SQLite's handler never runs: raise QueryTimeout once the
+        deadline has passed."""
+        if self():
+            raise QueryTimeout("the query time budget was exceeded")
+
 
 @contextmanager
 def read_snapshot(conn: sqlite3.Connection, budget: QueryBudget | None = None):

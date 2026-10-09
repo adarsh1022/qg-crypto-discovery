@@ -47,6 +47,7 @@ from typing import Any
 
 from . import run_state as rs
 from .fs_ingest import FILE_ERROR_STATUSES, unresolved_read_errors
+from .db import QueryBudget
 from .fs_record import DIRECTORY_LEVEL_ERROR_KINDS, FORMATS, PARSE_STATUSES, assess_at, expiring_days_with_source
 from .reports import MAX_FRONTIER, InvalidQuery, current_frontier, prepare_snapshot, require_filesystem_run
 
@@ -136,9 +137,16 @@ def _ranked(conn: sqlite3.Connection, group_sql: str, params: dict, order: str, 
 
 
 # ------------------------------------------------------------------ the per-run summary
+CHECK_EVERY = 256                  # certificates between two deadline checks in the Python loop
+
+
 def fs_summary(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime, frontier: int | None = None,
-               top_n: int = DEFAULT_TOP) -> dict:
-    """Every report metric of one filesystem run, from one snapshot (see the module docstring for definitions)."""
+               top_n: int = DEFAULT_TOP, budget: QueryBudget | None = None) -> dict:
+    """Every report metric of one filesystem run, from one snapshot (see the module docstring for definitions).
+
+    `budget`, if given, is also checked during the Python work between SQL statements (the per-certificate validity
+    recomputation), where SQLite's own deadline handler never runs; it raises db.QueryTimeout when the deadline passed.
+    """
     now = _check_now(now)
     top_n = _check_int("top_n", top_n, 1, MAX_TOP)
     if frontier is not None:
@@ -174,8 +182,11 @@ def fs_summary(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime, front
     now_unique = {"valid": 0, "expiring": 0, "expired": 0, "not_yet_valid": 0}
     now_sightings = dict(now_unique)
     buckets_unique, buckets_sightings = dict.fromkeys(EXPIRY_BUCKETS, 0), dict.fromkeys(EXPIRY_BUCKETS, 0)
-    for cert in conn.execute(f"SELECT c.not_before, c.not_after, COUNT(*) AS sightings FROM fs_observations AS o "
-                             f"JOIN certificates AS c ON c.sha256 = o.sha256 WHERE {scope} GROUP BY o.sha256", p):
+    for number, cert in enumerate(conn.execute(
+            f"SELECT c.not_before, c.not_after, COUNT(*) AS sightings FROM fs_observations AS o "
+            f"JOIN certificates AS c ON c.sha256 = o.sha256 WHERE {scope} GROUP BY o.sha256", p)):
+        if budget is not None and number % CHECK_EVERY == 0:
+            budget.check()
         status, days, not_yet_valid = assess_at(cert["not_before"], cert["not_after"], now, threshold)
         bucket = expiry_bucket(days)
         for counts, buckets, weight in ((now_unique, buckets_unique, 1), (now_sightings, buckets_sightings, cert["sightings"])):
@@ -183,6 +194,8 @@ def fs_summary(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime, front
             buckets[bucket] += weight
             counts["not_yet_valid"] += weight if not_yet_valid else 0
 
+    if budget is not None:
+        budget.check()
     certs = f"FROM fs_observations AS o JOIN certificates AS c ON c.sha256 = o.sha256 WHERE {scope}"
     algorithms = _ranked(conn, f"SELECT c.key_algorithm AS key_algorithm, c.key_size AS key_size, c.key_curve AS key_curve, "
                                f"COUNT(DISTINCT o.sha256) AS uniq, COUNT(*) AS sightings {certs} "
@@ -200,6 +213,8 @@ def fs_summary(conn: sqlite3.Connection, run_id: str, *, now: dt.datetime, front
                                 f"COUNT(DISTINCT o.sha256) AS uniq FROM fs_observations AS o WHERE {scope} AND o.sha256 IS NOT NULL "
                                 f"GROUP BY 1", p, ORDER_DIRECTORIES, top_n, ("sightings",))
 
+    if budget is not None:
+        budget.check()
     status_params = {f"status{i}": status for i, status in enumerate(FILE_ERROR_STATUSES)}
     status_marks = ", ".join(f":{name}" for name in status_params)
     file_errors = conn.execute(f"SELECT COUNT(*) FROM fs_observations AS o WHERE {scope} AND o.parse_status IN ({status_marks})",
@@ -277,7 +292,8 @@ def run_statistics(conn: sqlite3.Connection, *, run_type: str | None = None, sin
 
 
 # ------------------------------------------------------------------ dashboard
-def dashboard(conn: sqlite3.Connection, *, now: dt.datetime, recent: int = DEFAULT_RECENT, top_n: int = DEFAULT_TOP) -> dict:
+def dashboard(conn: sqlite3.Connection, *, now: dt.datetime, recent: int = DEFAULT_RECENT, top_n: int = DEFAULT_TOP,
+              budget: QueryBudget | None = None) -> dict:
     """The opening screen: what was started last, what the newest finished filesystem scan found, and a short history.
 
     latest_run               highest run_number, any type, any status (what the user last started).
@@ -299,5 +315,5 @@ def dashboard(conn: sqlite3.Connection, *, now: dt.datetime, recent: int = DEFAU
     return {"as_of": _timestamp(now),
             "latest_run": None if latest is None else _brief(latest),
             "latest_terminal_fs_run": None if finished is None else _brief(finished),
-            "summary": None if finished is None else fs_summary(conn, finished["run_id"], now=now, top_n=top_n),
+            "summary": None if finished is None else fs_summary(conn, finished["run_id"], now=now, top_n=top_n, budget=budget),
             "runs_by_status": by_status, "recent_runs": [_brief(r) for r in recent_rows]}
