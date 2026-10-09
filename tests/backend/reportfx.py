@@ -171,3 +171,120 @@ def duplicate_counts(records, seqs=None):
     return {"within_file": kinds.count("within_file"), "across_files": kinds.count("across_files"),
             "sightings": sum(1 for r in rows if r["sha256"] is not None),
             "unique": len({r["sha256"] for r in rows if r["sha256"] is not None})}
+
+
+# ------------------------------------------------------------------ the summary oracle (independent of backend/summaries.py)
+import datetime as _dt
+import math as _math
+
+BUCKETS = ["expired", "0-30", "31-90", "91-365", "over-365"]
+
+
+def bucket(days):
+    if days < 0:
+        return "expired"
+    for limit, name in ((30, "0-30"), (90, "31-90"), (365, "91-365")):
+        if days <= limit:
+            return name
+    return "over-365"
+
+
+def _when(text):
+    return _dt.datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=_dt.timezone.utc)
+
+
+def assess_now(not_before, not_after, now, threshold):
+    """(status, days, not_yet_valid) from first principles: seconds remaining, floored to whole days."""
+    remaining = (_when(not_after) - now).total_seconds()
+    days = _math.floor(remaining / 86400)
+    status = "expired" if remaining < 0 else ("expiring" if days <= threshold else "valid")
+    return status, days, _when(not_before) > now
+
+
+def _nulls_first(*values):
+    return tuple((v is not None, v) for v in values)
+
+
+def ranked(groups, order, n, additive):
+    ordered = sorted(groups, key=order)
+    top, rest = ordered[:n], ordered[n:]
+    other = None if not rest else {"groups": len(rest), **{m: sum(g[m] for g in rest) for m in additive}}
+    return {"top": top, "other": other, "total_groups": len(groups), "limit": n}
+
+
+def _group(rows, key_names, measure):
+    """Group oracle rows (only those with a fingerprint unless `measure` says otherwise) by the given keys."""
+    groups = {}
+    for r in rows:
+        groups.setdefault(tuple(r[k] for k in key_names), []).append(r)
+    out = []
+    for key, members in groups.items():
+        item = dict(zip(key_names, key))
+        item.update(measure(members))
+        out.append(item)
+    return out
+
+
+def summary_oracle(records, now, *, threshold=30, top_n=20, seqs=None):
+    rows = expected(records, seqs)
+    with_cert = [r for r in rows if r["sha256"] is not None]
+    unique_ids = {r["sha256"] for r in with_cert}
+    kinds = [r["duplicate_kind"] for r in rows]
+    # duplicates by the closed formulas (independent of the per-row labelling used for the kinds above)
+    per_path, per_fp = {}, {}
+    for r in with_cert:
+        per_path[(r["sha256"], r["path"])] = per_path.get((r["sha256"], r["path"]), 0) + 1
+        per_fp.setdefault(r["sha256"], set()).add(r["path"])
+    within = sum(n - 1 for n in per_path.values())
+    across = sum(len(paths) - 1 for paths in per_fp.values())
+    assert (within, across) == (kinds.count("within_file"), kinds.count("across_files"))
+    statuses = ("ok", "malformed", "unsupported", "too_large", "no_certificate", "access_denied", "read_error", "skipped")
+    parse_status = {s: sum(1 for r in rows if r["parse_status"] == s) for s in statuses}
+    formats = {f: sum(1 for r in rows if r["format"] == f) for f in ("pem", "der", "pkcs12", "unknown")}
+
+    discovery = {s: sum(1 for r in with_cert if r["validity_status"] == s) for s in ("valid", "expiring", "expired")}
+    discovery["not_yet_valid"] = sum(1 for r in with_cert if r["not_yet_valid"])
+    discovery_buckets = {b: 0 for b in BUCKETS}
+    for r in with_cert:
+        discovery_buckets[bucket(r["days_to_expiry"])] += 1
+
+    now_unique = {"valid": 0, "expiring": 0, "expired": 0, "not_yet_valid": 0}
+    now_sightings, buckets_unique, buckets_sightings = dict(now_unique), {b: 0 for b in BUCKETS}, {b: 0 for b in BUCKETS}
+    sightings_of = {}
+    for r in with_cert:
+        sightings_of[r["sha256"]] = sightings_of.get(r["sha256"], 0) + 1
+    first_row = {}
+    for r in with_cert:
+        first_row.setdefault(r["sha256"], r)
+    for sha, r in first_row.items():
+        status, days, nyv = assess_now(r["not_before"], r["not_after"], now, threshold)
+        for counts, buckets, weight in ((now_unique, buckets_unique, 1), (now_sightings, buckets_sightings, sightings_of[sha])):
+            counts[status] += weight
+            buckets[bucket(days)] += weight
+            counts["not_yet_valid"] += weight if nyv else 0
+
+    def cert_measure(members):
+        return {"unique": len({m["sha256"] for m in members}), "sightings": len(members)}
+    algorithms = ranked(_group(with_cert, ("key_algorithm", "key_size", "key_curve"), cert_measure),
+                        lambda g: (-g["unique"], -g["sightings"], _nulls_first(g["key_algorithm"], g["key_size"], g["key_curve"])), top_n, ("unique", "sightings"))
+    signatures = ranked(_group(with_cert, ("signature_algorithm",), cert_measure),
+                        lambda g: (-g["unique"], -g["sightings"], g["signature_algorithm"]), top_n, ("unique", "sightings"))
+    issuers = ranked(_group(with_cert, ("issuer",), cert_measure), lambda g: (-g["unique"], -g["sightings"], g["issuer"]), top_n, ("unique", "sightings"))
+    roots = ranked(_group(rows, ("scan_root",), lambda m: {"observations": len(m), "sightings": sum(1 for x in m if x["sha256"]),
+                                                            "unique": len({x["sha256"] for x in m if x["sha256"]})}),
+                   lambda g: (-g["observations"], g["scan_root"]), 100, ("observations", "sightings"))
+    for r in with_cert:
+        r["directory"] = r["path"][:r["path"].rfind("\\") + 1]
+    directories = ranked(_group(with_cert, ("directory",), lambda m: {"sightings": len(m), "unique": len({x["sha256"] for x in m})}),
+                         lambda g: (-g["sightings"], -g["unique"], g["directory"]), top_n, ("sightings",))
+    failures = ("malformed", "unsupported", "too_large", "access_denied", "read_error")
+    return {"totals": {"records": len(rows), "sightings": len(with_cert), "unique_certificates": len(unique_ids),
+                       "duplicate_observations": {"total": len(with_cert) - len(unique_ids), "within_file": within, "across_files": across},
+                       "parse_failures": sum(parse_status[s] for s in failures), "no_certificate": parse_status["no_certificate"],
+                       "skipped": parse_status["skipped"]},
+            "parse_status": parse_status, "formats": formats,
+            "validity": {"at_discovery": discovery, "now": {"unique": now_unique, "sightings": now_sightings}},
+            "expiry_buckets": {"definitions": BUCKETS, "at_discovery": discovery_buckets,
+                               "now": {"unique": buckets_unique, "sightings": buckets_sightings}},
+            "algorithms": algorithms, "signature_algorithms": signatures, "issuers": issuers,
+            "locations": {"scan_roots": roots, "directories": directories}}

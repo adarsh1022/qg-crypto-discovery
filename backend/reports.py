@@ -236,13 +236,13 @@ def _fold(value: Any) -> Any:
     return value.casefold() if isinstance(value, str) else value
 
 
-def _prepare(conn: sqlite3.Connection) -> None:
+def prepare_snapshot(conn: sqlite3.Connection) -> None:
     if not conn.in_transaction:
         raise TransactionRequired("reports must run inside db.read_snapshot(), so the page and total share one snapshot")
     conn.create_function("qg_fold", 1, _fold, deterministic=True)
 
 
-def _filesystem_run(conn: sqlite3.Connection, run_id: str) -> None:
+def require_filesystem_run(conn: sqlite3.Connection, run_id: str) -> None:
     row = conn.execute("SELECT type FROM runs WHERE run_id = ?", (run_id,)).fetchone()
     if row is None:
         raise runs.RunNotFound(run_id)
@@ -333,8 +333,8 @@ def _sighting_item(row: sqlite3.Row) -> dict:
 def search_sightings(conn: sqlite3.Connection, run_id: str, query: SightingQuery | None = None) -> Page:
     """One page of the run's observations plus the total that matches the same filters under the same frontier."""
     query = query or SightingQuery()
-    _prepare(conn)
-    _filesystem_run(conn, run_id)
+    prepare_snapshot(conn)
+    require_filesystem_run(conn, run_id)
     frontier = query.frontier if query.frontier is not None else current_frontier(conn, run_id)
     params: dict[str, Any] = {"run": run_id, "frontier": frontier}
     where = _sighting_where(query, params)                                       # ONE builder: page and total cannot drift
@@ -400,8 +400,8 @@ def _unique_item(row: sqlite3.Row) -> dict:
 def search_unique_certificates(conn: sqlite3.Connection, run_id: str, query: UniqueQuery | None = None) -> Page:
     """One page of the run's distinct fingerprints, each with its sighting and path counts under the frontier."""
     query = query or UniqueQuery()
-    _prepare(conn)
-    _filesystem_run(conn, run_id)
+    prepare_snapshot(conn)
+    require_filesystem_run(conn, run_id)
     frontier = query.frontier if query.frontier is not None else current_frontier(conn, run_id)
     params: dict[str, Any] = {"run": run_id, "frontier": frontier}
     where = _unique_where(query, params)

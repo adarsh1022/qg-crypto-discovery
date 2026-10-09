@@ -190,6 +190,17 @@ def _assess(not_before: dt.datetime, not_after: dt.datetime, now: dt.datetime, e
     return status, days, now < not_before
 
 
+def assess_at(not_before: str, not_after: str, now: dt.datetime, expiring_days: int) -> tuple[str, int, bool]:
+    """(validity_status, days_to_expiry, not_yet_valid) of a stored certificate at `now`, by the agent's own rules.
+
+    `not_before` / `not_after` are the stored 'YYYY-MM-DDTHH:MM:SSZ' texts; `now` must be timezone-aware.
+    """
+    if now.tzinfo is None:
+        raise ValueError("assess_at needs a timezone-aware datetime")
+    parse = lambda text: dt.datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)   # noqa: E731
+    return _assess(parse(not_before), parse(not_after), now, expiring_days)
+
+
 def possible_validity(not_before: str, not_after: str, discovered_at: str, expiring_days: int) -> set[tuple[str, int, bool]]:
     """Every (status, days, not_yet_valid) an honest agent could have reported for these three timestamps.
 
@@ -214,10 +225,18 @@ def _validity_mismatch_code(claimed: tuple[str, int, bool], possible: set[tuple[
     return "validity_facts_inconsistent"          # each value is possible on its own, but not together
 
 
+def expiring_days_with_source(config: Any) -> tuple[int, str]:
+    """(threshold, source): the 'expiring' threshold the run asked the agent to use, and whether it came from the run's
+    configuration ("run_config") or is the agent's own default ("default", also when the stored value is unusable)."""
+    value = config.get("expiring_days") if isinstance(config, dict) else None
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 10**7:
+        return value, "run_config"
+    return DEFAULT_EXPIRING_DAYS, "default"
+
+
 def expiring_days_from_config(config: Any) -> int:
     """The 'expiring' threshold the run asked the agent to use (its own default when the config does not say)."""
-    value = config.get("expiring_days") if isinstance(config, dict) else None
-    return value if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 10**7 else DEFAULT_EXPIRING_DAYS
+    return expiring_days_with_source(config)[0]
 
 
 # ------------------------------------------------------------------ record validation
