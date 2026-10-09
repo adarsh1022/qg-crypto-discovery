@@ -9,12 +9,19 @@
   real agent evidence can never be mixed in one file.
 * transaction() wraps BEGIN IMMEDIATE / COMMIT / ROLLBACK. Connections run in autocommit mode
   (isolation_level=None) so transactions are always explicit.
+* Reading: connect(read_only=True) sets PRAGMA query_only, so a report connection cannot write even through a bug.
+  read_snapshot() holds ONE consistent view of the database for everything a read request does (WAL readers do not
+  block the writer), enforces an optional QueryBudget (a deadline for the whole request) and ALWAYS releases the
+  snapshot: roll back, clear the deadline handler, leave the connection reusable. The caller still closes the
+  connection, in the thread that opened it.
 """
 from __future__ import annotations
 
 import datetime as dt
+import math
 import re
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -42,7 +49,11 @@ class TransactionRequired(DatabaseError):
     """An operation that must run inside its caller's transaction was called without one."""
 
 
-def connect(path, *, busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS) -> sqlite3.Connection:
+class QueryTimeout(DatabaseError):
+    """A read request used up its QueryBudget. Carries no SQL, no data and no partial result."""
+
+
+def connect(path, *, busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS, read_only: bool = False) -> sqlite3.Connection:
     if sqlite3.sqlite_version_info < MIN_SQLITE:
         raise DatabaseError(f"SQLite {'.'.join(map(str, MIN_SQLITE))} or newer is required "
                             f"(found {sqlite3.sqlite_version})")
@@ -60,6 +71,10 @@ def connect(path, *, busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS) -> sqlite3.
             raise DatabaseError("SQLite could not enable foreign key enforcement")
         if not in_memory and str(mode).lower() != "wal":
             raise DatabaseError(f"could not enable WAL journaling (got {mode!r}); use a local disk")
+        if read_only:                                                # last: the pragmas above are still allowed to run
+            conn.execute("PRAGMA query_only = ON")
+            if conn.execute("PRAGMA query_only").fetchone()[0] != 1:
+                raise DatabaseError("SQLite could not make the connection read-only")
     except BaseException:
         conn.close()
         raise
@@ -106,6 +121,63 @@ def transaction(conn: sqlite3.Connection):
         conn.execute("ROLLBACK")
         raise
     conn.execute("COMMIT")
+
+
+class QueryBudget:
+    """A deadline for everything one read request does (all its statements and the snapshot's lifetime together).
+
+    Used as a SQLite progress handler: SQLite calls it every `check_every` virtual-machine steps and aborts the running
+    statement as soon as it returns non-zero ("interrupted"). `expired` records that THIS budget fired, so the caller
+    can tell its own timeout from any other error. The clock is injectable so tests are deterministic.
+    """
+
+    def __init__(self, seconds: float, *, clock=time.monotonic, check_every: int = 1000):
+        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not 0 < seconds < math.inf:
+            raise ValueError("seconds must be a positive finite number")
+        if isinstance(check_every, bool) or not isinstance(check_every, int) or check_every < 1:
+            raise ValueError("check_every must be a positive integer")
+        self.seconds, self.check_every, self._clock = seconds, check_every, clock
+        self._deadline = clock() + seconds
+        self.expired = False
+
+    def __call__(self) -> int:
+        try:
+            if self._clock() > self._deadline:
+                self.expired = True
+        except Exception:                                            # noqa: BLE001 - a broken clock must fail closed
+            self.expired = True
+        return 1 if self.expired else 0
+
+
+@contextmanager
+def read_snapshot(conn: sqlite3.Connection, budget: QueryBudget | None = None):
+    """One consistent, read-only view for a whole request: BEGIN (deferred), then always ROLLBACK.
+
+    Lifecycle, in order, whatever happens inside the block: the deadline handler is removed, an open transaction is
+    rolled back (an interrupted statement can leave the read transaction open; a rollback that finds nothing to roll
+    back is ignored), and the connection stays usable. A SQLite error raised because THIS budget fired becomes
+    QueryTimeout (chained from nothing, so no SQL text escapes); any other error propagates unchanged. Not nestable.
+    """
+    if conn.in_transaction:
+        raise DatabaseError("read_snapshot cannot be opened inside another transaction")
+    conn.execute("BEGIN")
+    try:
+        if budget is not None:
+            conn.set_progress_handler(budget, budget.check_every)
+        conn.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchall()      # take the snapshot now, not at the first report query
+        yield conn
+    except sqlite3.OperationalError:
+        if budget is not None and budget.expired:
+            raise QueryTimeout("the query time budget was exceeded") from None
+        raise
+    finally:
+        if budget is not None:
+            conn.set_progress_handler(None, 0)
+        if conn.in_transaction:
+            try:
+                conn.execute("ROLLBACK")
+            except sqlite3.Error:
+                pass
 
 
 def require_transaction(conn: sqlite3.Connection) -> None:

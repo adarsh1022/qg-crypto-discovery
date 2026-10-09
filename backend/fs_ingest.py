@@ -266,10 +266,10 @@ def derived_counts(conn: sqlite3.Connection, run_id: str) -> rs.Counts:
         f"SELECT COUNT(*) FROM run_issues WHERE run_id = ? AND source = 'agent' AND kind IN ({kinds})",
         (run_id, *DIRECTORY_LEVEL_ERROR_KINDS)).fetchone()[0]
     return rs.Counts(records=row["records"], findings=row["findings"], rejected=rejected,
-                     errors=row["file_errors"] + directory_errors + _unresolved_read_errors(conn, run_id))
+                     errors=row["file_errors"] + directory_errors + unresolved_read_errors(conn, run_id))
 
 
-def _unresolved_read_errors(conn: sqlite3.Connection, run_id: str) -> int:
+def unresolved_read_errors(conn: sqlite3.Connection, run_id: str) -> int:
     """Agent-reported `read` errors with no stored access_denied/read_error observation for the same path and code.
 
     A resolved read error is already counted, once, as that observation; counting it here as well would double count.

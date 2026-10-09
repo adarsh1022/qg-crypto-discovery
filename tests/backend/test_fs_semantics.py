@@ -462,7 +462,7 @@ def test_a_resolved_read_error_is_counted_once(conn):
     ingest(conn, run_id, [ok_record(n=1), failure_record(r"C:\app\locked.pem", "access_denied")])
     final = finish(conn, run_id, 2, summary=summary(2, errors=[read_error(r"C:\app\locked.pem")]))
     assert final.status == "partial" and final.error_count == 1 and final.error_summary == "file_errors:1"
-    assert fs_ingest._unresolved_read_errors(conn, run_id) == 0
+    assert fs_ingest.unresolved_read_errors(conn, run_id) == 0
 
 
 def test_a_read_error_is_resolved_by_a_read_error_status_too(conn):
@@ -556,7 +556,7 @@ def test_a_real_locked_file_is_counted_exactly_once(conn, tmp_path):
     runs.start_run(conn, run_id, now=at(1))
     fs_ingest.ingest_fs_batch(conn, run_id, fs_ingest.number_records(records), now=at(2))
     final = fs_ingest.finalize_fs_run(conn, run_id, now=at(3), summary=scan_summary)
-    assert final.status == "partial" and final.error_count == 1 and fs_ingest._unresolved_read_errors(conn, run_id) == 0
+    assert final.status == "partial" and final.error_count == 1 and fs_ingest.unresolved_read_errors(conn, run_id) == 0
 
 
 def test_a_real_run_where_the_record_was_lost_in_transit_is_partial(conn, tmp_path):
