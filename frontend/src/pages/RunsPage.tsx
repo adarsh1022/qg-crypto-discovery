@@ -86,7 +86,7 @@ export function RunsPage({ active = true }: { active?: boolean }) {
       </details>
       <div role="status" aria-live="polite" className={`notice${notice?.bad ? " notice-bad" : ""}`}>{notice?.text}</div>
 
-      <SchedulesPanel active={active} />
+      <SchedulesPanel active={active} onRunsChanged={() => void refresh()} />
 
       <section aria-labelledby="runs-title">
         <div className="toolbar">

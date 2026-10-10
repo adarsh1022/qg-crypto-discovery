@@ -1,12 +1,14 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { REPORT_POLL_MS } from "../hooks/useResource";
 import { backend } from "../test/fakeBackend";
 import { errorResponse, installFetch, makeRun } from "../test/helpers";
 import { makeSchedule, schedulesBackend } from "../test/scheduleHelpers";
 import { RunsPage } from "./RunsPage";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -94,5 +96,34 @@ describe("the Scheduled scans section on the Runs page", () => {
     await waitFor(() => expect(screen.queryByRole("row", { name: /^#1\b/ })).toBeNull());
     expect(rowFor(2).getByText("tls")).toBeTruthy();
     expect(screen.getByRole("listitem", { name: "Schedule sched-0000000a" })).toBeTruthy();   // unaffected by the runs filter
+  });
+});
+
+describe("scheduled runs appear in the list by themselves", () => {
+  const poll = (times = 1) => act(async () => { await vi.advanceTimersByTimeAsync(REPORT_POLL_MS * times); });
+  const runsRequests = (mock: ReturnType<typeof installFetch>) => mock.mock.calls.filter(([u]) => String(u).startsWith("/api/runs")).length;
+
+  it("lists a run the scheduler started without the user pressing Refresh", async () => {
+    vi.useFakeTimers();
+    const { runsApi, schedulesApi } = serve([], [makeSchedule({ run_count: 0 })]);
+    render(<RunsPage />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(screen.queryByRole("row", { name: /^#1\b/ })).toBeNull();
+    const run = makeRun({ run_number: 1, trigger: "scheduled", schedule_id: "sched-0000000a" });
+    runsApi.runs.push(run);                                                                 // the scheduler started a run ...
+    schedulesApi.schedules[0] = { ...schedulesApi.schedules[0], run_count: 1, last_run: { run_id: run.run_id, run_number: 1, status: "completed", queued_at: run.queued_at, finished_at: run.finished_at } };
+    await poll();                                                                           // ... the schedule list notices ...
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(rowFor(1).getByText("Scheduled")).toBeTruthy();                                  // ... and so does the runs list
+  });
+
+  it("does not start polling the runs list while nothing is happening", async () => {
+    vi.useFakeTimers();
+    const { fetchMock } = serve([makeRun({ run_number: 1 })], [makeSchedule({ run_count: 3 })]);
+    render(<RunsPage />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    const before = runsRequests(fetchMock);
+    await poll(5);
+    expect(runsRequests(fetchMock)).toBe(before);                                           // schedules are polled; the runs list is not
   });
 });

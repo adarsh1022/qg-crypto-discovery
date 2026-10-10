@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listSchedules, setScheduleEnabled } from "../api/client";
 import { describeError } from "../api/describe";
 import { SCHEDULE_STATES, type Schedule } from "../api/types";
@@ -89,8 +89,26 @@ function ScheduleItem({ schedule, onChanged }: { schedule: Schedule; onChanged: 
  * Periodic scans: the list the backend holds (read again every few seconds while the page is in use), a compact form to add
  * one, and pause/resume. Everything shown is what the backend returned; nothing here predicts a run or a result.
  */
-export function SchedulesPanel({ active = true }: { active?: boolean }) {
+export function SchedulesPanel({ active = true, onRunsChanged }: { active?: boolean; onRunsChanged?: () => void }) {
   const schedules = useResource((signal) => listSchedules(signal), [], { pollWhile: () => active });
+  // A schedule that has started a run since the last look means the runs list is out of date: tell the page once. The first list
+  // is only a baseline, and neither a new schedule nor pausing or resuming one counts.
+  const counts = useRef<Map<string, number> | null>(null);
+  const notify = useRef(onRunsChanged);
+  notify.current = onRunsChanged;
+  useEffect(() => {
+    if (schedules.data === null) return;
+    const now = new Map(schedules.data.map((s) => [s.schedule_id, s.run_count]));
+    const before = counts.current;
+    counts.current = now;
+    if (before === null) return;
+    for (const [id, count] of now) {
+      if ((before.get(id) ?? count) < count) {
+        notify.current?.();
+        return;
+      }
+    }
+  }, [schedules.data]);
   const [created, setCreated] = useState<Schedule | null>(null);
   const [formOpen, setFormOpen] = useState(false);
 

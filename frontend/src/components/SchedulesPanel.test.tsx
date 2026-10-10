@@ -207,3 +207,57 @@ describe("polling", () => {
     expect(fetchMock.mock.calls.length).toBe(first);
   });
 });
+
+describe("telling the page that a schedule has started a run", () => {
+  async function mount(initial = [makeSchedule({ run_count: 1 })], active = true) {
+    vi.useFakeTimers();
+    const fake = schedulesBackend(initial);
+    installFetch((req) => fake.handler(req) ?? errorResponse(404, "not_found"));
+    const onRunsChanged = vi.fn();
+    render(<SchedulesPanel active={active} onRunsChanged={onRunsChanged} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    return { fake, onRunsChanged };
+  }
+  const poll = (times = 1) => act(async () => { await vi.advanceTimersByTimeAsync(REPORT_POLL_MS * times); });
+
+  it("says nothing about the first list it loads, however many runs the schedule has already made", async () => {
+    const { onRunsChanged } = await mount([makeSchedule({ run_count: 12 })]);
+    expect(onRunsChanged).not.toHaveBeenCalled();
+  });
+
+  it("says nothing while nothing new has started", async () => {
+    const { onRunsChanged } = await mount();
+    await poll(3);
+    expect(onRunsChanged).not.toHaveBeenCalled();
+  });
+
+  it("says so once when a schedule's run count has grown since the last look", async () => {
+    const { fake, onRunsChanged } = await mount();
+    fake.schedules[0] = { ...fake.schedules[0], run_count: 2 };
+    await poll();
+    expect(onRunsChanged).toHaveBeenCalledTimes(1);
+    await poll(2);
+    expect(onRunsChanged).toHaveBeenCalledTimes(1);                           // the same count is not news again
+    fake.schedules[0] = { ...fake.schedules[0], run_count: 5 };
+    await poll();
+    expect(onRunsChanged).toHaveBeenCalledTimes(2);
+  });
+
+  it("is not triggered by pausing or resuming, a changed next due time, or a new schedule", async () => {
+    const { fake, onRunsChanged } = await mount();
+    fake.schedules[0] = { ...fake.schedules[0], enabled: false, state: "paused", next_due_at: null };
+    await poll();
+    fake.schedules[0] = { ...fake.schedules[0], enabled: true, state: "waiting", next_due_at: "2026-03-01T13:00:00.000Z" };
+    await poll();
+    fake.schedules.push(makeSchedule({ schedule_id: "sched-0000000b", run_count: 9 }));
+    await poll();
+    expect(onRunsChanged).not.toHaveBeenCalled();
+  });
+
+  it("does not look, and so does not say anything, while the page is not in use", async () => {
+    const { fake, onRunsChanged } = await mount([makeSchedule({ run_count: 1 })], false);
+    fake.schedules[0] = { ...fake.schedules[0], run_count: 4 };
+    await poll(3);
+    expect(onRunsChanged).not.toHaveBeenCalled();
+  });
+});
