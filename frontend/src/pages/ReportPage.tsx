@@ -3,6 +3,7 @@ import { ApiError, getRun, getSummary } from "../api/client";
 import { describeError } from "../api/describe";
 import { isActive, type Run } from "../api/types";
 import { ErrorPanel } from "../components/ErrorPanel";
+import { RelationshipsSection } from "../components/RelationshipsSection";
 import { StatusBadge } from "../components/StatusBadge";
 import { CertificatePanel } from "../components/report/CertificatePanel";
 import { CertificatesTab } from "../components/report/CertificatesTab";
@@ -150,6 +151,8 @@ function ReportBody({ run }: { run: Run }) {
       <Loadable state={summary} reload={summary.reload} what="summary">
         {(data) => <SummarySection summary={data} />}
       </Loadable>
+
+      <RelationshipsSection runId={run.run_id} version={version} />
 
       {selected && <CertificatePanel key={selected} runId={run.run_id} sha256={selected} onClose={() => setSelected(null)} />}
 

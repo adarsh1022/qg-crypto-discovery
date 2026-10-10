@@ -20,10 +20,12 @@ Working end to end on Windows:
   report them in the browser. This is *not* passive traffic capture; see [TLS discovery and limitations](#tls-discovery-and-limitations).
 - **Scheduled (periodic) scans**: a schedule starts a filesystem or TLS scan on its own every 15 seconds to 7 days; see
   [Scheduled scans](#scheduled-scans).
+- **Relationships**: when a run finishes, the certificates, hosts and probed local listeners its evidence supports are
+  recorded and listed in a table on its report; see [Relationships](#relationships).
 - Run lifecycle (queued, running, completed / partial / failed, cancel), a read-only report API for both scan types, and a
   browser UI with a runs list and one report page per run.
 
-**Not implemented yet** (see [Known limitations](#known-limitations)): relationship mapping, a dashboard page and charts, and
+**Not implemented yet** (see [Known limitations](#known-limitations)): a relationship graph, a dashboard page and charts, and
 some filesystem-report views.
 
 ## Requirements
@@ -158,6 +160,30 @@ Invoke-RestMethod http://127.0.0.1:8765/api/schedules                       # li
 Invoke-RestMethod -Method Patch -Uri http://127.0.0.1:8765/api/schedules/<schedule id> -ContentType "application/json" -Body '{"enabled": false}'   # pause
 ```
 
+## Relationships
+
+When a run finishes, the backend records the relationships its own stored evidence supports, in the same transaction that
+finalizes the run. Every report lists them in a **Relationships** table (`GET /api/runs/{run_id}/relationships`: read-only,
+at most 500 rows, deterministic order).
+
+| Relationship | Recorded when | What it means |
+|---|---|---|
+| certificate to host (`stored_on`) | a filesystem scan parsed the certificate from a file | The file exists on the host that ran the scan. It does not show the certificate is in use. |
+| local listener to certificate (`presented_certificate`) | a *completed* TLS handshake against a listener on this machine returned the certificate (one row per certificate in the chain) | The certificate was returned by an active probe. There is no remote peer, direction or packet count. |
+
+- The agent probes listeners on this machine and observes no traffic, so the schema's `communicates_with` edge kind is never
+  used. A probed listener is an endpoint scoped to the host that has it, so two machines' `127.0.0.1:443` never merge.
+- A listening process is shown on a TLS row only when every completed probe of that listener in the run was attributed to the
+  same process. It is read when the report is requested, never stored, and a PID never identifies anything. Filesystem scans
+  carry no process data.
+- A TLS row also lists *separate* evidence when filesystem scans stored a file with the same SHA-256 (host, number of runs,
+  latest run). That does not show the listener uses that file.
+- Repeating a scan strengthens an edge: each row shows its observations in this run and its observations and runs across all
+  runs. Recording is idempotent, and each run keeps its own contribution.
+- Each report says how recording compares with the evidence: *recorded*, *No relationships expected*, *Not recorded for this
+  run* (a run made before relationships existed, or one whose recording failed; nothing is backfilled or inferred) or *Only
+  partly recorded*. While a run is queued or running, nothing is recorded yet.
+
 ## Filesystem discovery
 
 - Looks for files with these extensions: `.pem .crt .cer .cert .der .pfx .p12`. Certificates are read from PEM bundles, DER
@@ -278,8 +304,9 @@ agent evidence cannot be mixed in one file. `GET /api/meta` reports the origin. 
 ## Known limitations
 
 Not implemented:
-- **Relationship mapping.** The database has `nodes` / `edges` tables, but nothing writes or reads them: there is no
-  relationship API and no graph in the UI.
+- **Relationship graph.** Relationships are shown as a table per run; there is no graph. A filesystem report lists only
+  `stored_on` rows and a TLS report only `presented_certificate` rows (plus the separate filesystem evidence described
+  above). Runs made before relationships were recorded are not backfilled and read "Not recorded for this run".
 - **Dashboard page and charts.** `GET /api/dashboard` and `GET /api/runs/stats` exist; the UI uses neither. Summary figures are
   shown as numbers; there are no charts.
 - **Filesystem report views.** The report lists certificates and files and shows validity counts, but there are no views by

@@ -76,8 +76,8 @@ export function RunsPage({ active = true }: { active?: boolean }) {
       <h1>Discovery runs</h1>
       <p className="muted">
         Start a filesystem scan or a TLS metadata scan below; both appear here with their reports, and either can also be scheduled to
-        repeat on its own. TLS scans are active probes of this machine&apos;s listening ports, not traffic capture. Relationship mapping
-        is not implemented yet.
+        repeat on its own. TLS scans are active probes of this machine&apos;s listening ports, not traffic capture. Each finished
+        run&apos;s report lists the certificate relationships its evidence supports; a relationship graph is not implemented yet.
       </p>
 
       <details className="new-scan" open={formOpen} onToggle={(e) => setFormOpen(e.currentTarget.open)}>

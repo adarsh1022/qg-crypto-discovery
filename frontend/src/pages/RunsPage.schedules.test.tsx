@@ -29,12 +29,12 @@ describe("the Scheduled scans section on the Runs page", () => {
     expect(order.indexOf("Scheduled scans")).toBeLessThan(order.indexOf("Runs"));
   });
 
-  it("says in the page text that scans can be scheduled, and still that relationship mapping is not built", async () => {
+  it("says in the page text that scans can be scheduled, and that no relationship graph exists yet", async () => {
     serve();
     render(<RunsPage />);
     const intro = (await screen.findByRole("heading", { name: "Discovery runs" })).parentElement!.querySelector("p")!.textContent!;
     expect(intro).toMatch(/scheduled to\s+repeat on its own/);
-    expect(intro).toMatch(/Relationship mapping is not implemented yet/);
+    expect(intro).toMatch(/relationship graph is not implemented yet/);
   });
 
   it("lists a schedule and, next to it, the scheduled run it created, tied together by the same schedule id and trigger", async () => {

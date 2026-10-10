@@ -17,15 +17,18 @@ measured against `ctx.not_before`, the moment this process started, so a restart
 from __future__ import annotations
 
 import datetime as dt
+import logging
 import math
 from dataclasses import dataclass
 from typing import Any, Callable
 
 import sqlite3
 
-from . import db, errors, fs_ingest, run_state as rs, runs, tls_ingest
+from . import db, errors, fs_ingest, relationships, run_state as rs, runs, tls_ingest
 from .errors import ApiError
 from .settings import Settings
+
+log = logging.getLogger(__name__)
 
 FS_LIST_KEYS = ("roots", "extensions", "exclude_dir_names", "exclude_paths")
 FS_POSITIVE_INT_KEYS = ("max_file_bytes", "max_entries", "max_candidates", "max_certs_per_file")
@@ -109,10 +112,25 @@ def _run_type(conn: sqlite3.Connection, run_id: str) -> str:
 
 
 def _finalize_in_tx(conn: sqlite3.Connection, run_id: str, **kwargs) -> rs.RunState:
-    """End a running run through the finalizer of ITS type. Filesystem runs make exactly the call they always did."""
+    """End a running run through the finalizer of ITS type, then record the relationships its stored evidence supports.
+
+    Recording happens in the SAME transaction (a run is never final without its relationships having been attempted) but inside
+    a savepoint: if recording fails, only its own writes are undone, the run is still finalized, and the run later reads as
+    'incomplete' instead of silently looking recorded. Only the exception class is logged (messages can quote data).
+    """
     if _run_type(conn, run_id) == "tls":
-        return tls_ingest.finalize_tls_run_in_tx(conn, run_id, **kwargs)
-    return fs_ingest.finalize_fs_run_in_tx(conn, run_id, **kwargs)
+        final = tls_ingest.finalize_tls_run_in_tx(conn, run_id, **kwargs)
+    else:
+        final = fs_ingest.finalize_fs_run_in_tx(conn, run_id, **kwargs)
+    conn.execute("SAVEPOINT record_relationships")
+    try:
+        relationships.record_run_in_tx(conn, run_id)
+    except Exception as exc:                                                       # noqa: BLE001 - must not undo the finalization
+        conn.execute("ROLLBACK TO record_relationships")
+        log.error("recording relationships failed: %s", type(exc).__name__)
+    finally:
+        conn.execute("RELEASE record_relationships")
+    return final
 
 
 def _view(conn: sqlite3.Connection, run_id: str) -> dict:

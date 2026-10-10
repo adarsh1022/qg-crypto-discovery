@@ -1,4 +1,5 @@
 // A small in-memory report API for tests. The shapes mirror backend/report_models.py (what the real endpoints return).
+import type { RelationshipPage } from "../api/relationshipTypes";
 import type { CertificateDetail, Issue, Sighting, Summary, UniqueCertificate } from "../api/reportTypes";
 import type { TlsObservation, TlsSummary } from "../api/tlsTypes";
 import type { Run } from "../api/types";
@@ -64,7 +65,18 @@ export function makeDetail(n: number, over: Partial<CertificateDetail> = {}): Ce
   };
 }
 
+export function makeRelationships(run: Run, over: Partial<RelationshipPage> = {}): RelationshipPage {
+  const final = ["completed", "partial", "failed"].includes(run.status);
+  return {
+    run: { run_id: run.run_id, run_number: run.run_number, type: run.type, status: run.status, final },
+    recording: { state: final ? "none_expected" : "pending", expected: 0, recorded: 0, missing: 0, unexpected: 0 },
+    counts: { stored_on: 0, presented_certificate: 0 },
+    items: [], total: 0, limit: 200, truncated: false, ...over,
+  };
+}
+
 export interface RunData {
+  relationships?: RelationshipPage;
   tlsSummary?: TlsSummary;
   tlsObservations?: TlsObservation[];
   tlsIssues?: Issue[];
@@ -135,6 +147,12 @@ export function reportBackend(runs: Run[], data: Record<string, RunData>, detail
       if (fp) rows = rows.filter((r) => r.peer_certificates.some((c) => c.sha256.startsWith(fp)));
       if (q) rows = rows.filter((r) => `${r.dst_ip} ${r.process_name ?? ""} ${r.peer_certificates[0]?.subject ?? ""}`.toLowerCase().includes(q.toLowerCase()));
       return jsonResponse({ items: rows.slice(offset, offset + limit), total: rows.length, limit, offset, frontier });
+    }
+    const r = /^\/api\/runs\/([0-9a-f]{32})\/relationships$/.exec(req.path);
+    if (r && req.method === "GET") {
+      const run = base.runs.find((x) => x.run_id === r[1]);
+      if (!run) return errorResponse(404, "run_not_found", "No such run.");
+      return jsonResponse((data[r[1]] ?? {}).relationships ?? makeRelationships(run));
     }
     const c = /^\/api\/certificates\/([0-9a-f]{64})$/.exec(req.path);
     if (c && req.method === "GET") {

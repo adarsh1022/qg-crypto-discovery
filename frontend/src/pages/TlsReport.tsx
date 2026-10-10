@@ -2,6 +2,7 @@ import { useState } from "react";
 import { getTlsSummary } from "../api/client";
 import { isActive, type Run } from "../api/types";
 import type { TlsSummary } from "../api/tlsTypes";
+import { RelationshipsSection } from "../components/RelationshipsSection";
 import { Loadable } from "../components/report/Loadable";
 import { ObservationsTab } from "../components/tls/ObservationsTab";
 import { TlsCertificatePanel } from "../components/tls/TlsCertificatePanel";
@@ -44,6 +45,8 @@ export function TlsReportBody({ run }: { run: Run }) {
       <Loadable state={summary} reload={summary.reload} what="summary">
         {(data) => <TlsSummarySection summary={data} />}
       </Loadable>
+
+      <RelationshipsSection runId={run.run_id} version={version} />
 
       {selected && <TlsCertificatePanel key={selected} runId={run.run_id} sha256={selected} onClose={() => setSelected(null)} />}
 

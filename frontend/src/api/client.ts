@@ -2,6 +2,7 @@
 // /api to the loopback backend, so the browser never needs CORS and never talks to another host.
 //
 // Hygiene: errors carry the HTTP status and the backend's fixed error code, never a response body, and nothing here logs.
+import type { RelationshipPage } from "./relationshipTypes";
 import type { CertificateDetail, CertificateQuery, Issue, Page, Sighting, SightingQuery, Summary, UniqueCertificate } from "./reportTypes";
 import type { TlsObservation, TlsObservationQuery, TlsSummary } from "./tlsTypes";
 import type { CreateRunBody, CreateScheduleBody, Run, RunFilters, Schedule } from "./types";
@@ -220,6 +221,15 @@ export async function getCertificate(sha256: string, signal?: AbortSignal): Prom
   const data = await request("GET", `/api/certificates/${sha256}`, undefined, signal);
   if (typeof data.sha256 !== "string" || !Array.isArray(data.san)) throw new ApiError(200, "invalid_response");
   return data as unknown as CertificateDetail;
+}
+
+// ------------------------------------------------------------------ relationships (read-only; both run types)
+export async function getRelationships(runId: string, signal?: AbortSignal): Promise<RelationshipPage> {
+  const data = await request("GET", runPath(runId, "/relationships"), undefined, signal);
+  if (!isObject(data.run) || !isObject(data.recording) || !isObject(data.counts) || !Array.isArray(data.items) || typeof data.total !== "number") {
+    throw new ApiError(200, "invalid_response");
+  }
+  return data as unknown as RelationshipPage;
 }
 
 // ------------------------------------------------------------------ the TLS report (read-only)

@@ -292,13 +292,14 @@ describe("starting a scan", () => {
 });
 
 describe("what the page says about itself", () => {
-  it("says both scan types start here, that TLS scans are active probes, and that relationship mapping is not built", async () => {
+  it("says both scan types start here, that TLS scans are active probes, that reports list relationships, and that no graph exists yet", async () => {
     installFetch(backend([]).handler);
     await showPage();
     const intro = (await screen.findByRole("heading", { name: "Discovery runs" })).parentElement!.querySelector("p")!.textContent!;
     expect(intro).toMatch(/Start a filesystem scan or a TLS metadata scan below/);
     expect(intro).toMatch(/active probes .* not traffic capture/);
-    expect(intro).toMatch(/Relationship mapping is not implemented yet/);
+    expect(intro).toMatch(/report lists the certificate relationships its evidence supports/);
+    expect(intro).toMatch(/relationship graph is not implemented yet/);
     expect(intro).not.toMatch(/created through the API|not available/i);
   });
 });
