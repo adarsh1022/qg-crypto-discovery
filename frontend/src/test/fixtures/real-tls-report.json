@@ -1,0 +1,617 @@
+{
+ "completed": {
+  "run": {
+   "run_id": "c61d167561c1464d9792ab1675d56d62",
+   "run_number": 1,
+   "type": "tls",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "completed",
+   "config": {
+    "connect_timeout_seconds": 1,
+    "handshake_timeout_seconds": 1
+   },
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "completed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 3,
+   "finding_count": 1,
+   "rejected_count": 0,
+   "error_count": 0,
+   "error_summary": null,
+   "agent_summary": {
+    "complete": true,
+    "elapsed_seconds": 1.032,
+    "enumeration": "ok",
+    "errors_total": 0,
+    "handshakes_completed": 1,
+    "listeners_found": 3,
+    "policy_skipped": 0,
+    "port_filtered": 0,
+    "records": 3,
+    "records_by_outcome": {
+     "completed": 1,
+     "failed": 1,
+     "incomplete": 1
+    },
+    "stop_reason": "completed",
+    "targets_planned": 3,
+    "targets_probed": 3,
+    "targets_truncated": false
+   }
+  },
+  "summary": {
+   "run": {
+    "run_id": "c61d167561c1464d9792ab1675d56d62",
+    "run_number": 1,
+    "type": "tls",
+    "status": "completed",
+    "final": true,
+    "started_at": "2026-03-01T12:00:00.000Z",
+    "finished_at": "2026-03-01T12:00:00.000Z"
+   },
+   "as_of": "2026-03-01T12:00:00.000Z",
+   "frontier": 3,
+   "frontier_scope": {
+    "frozen": [
+     "totals",
+     "outcomes",
+     "tls_versions",
+     "cipher_suites",
+     "process_attribution",
+     "certificate_validity"
+    ],
+    "live": [
+     "issues",
+     "scan"
+    ]
+   },
+   "totals": {
+    "probe_attempts": 3,
+    "handshakes_completed": 1,
+    "not_completed": 2,
+    "endpoints": 3,
+    "certificates_presented": 3,
+    "leaf_certificates": 1
+   },
+   "outcomes": {
+    "completed": 1,
+    "failed": 1,
+    "alert": 0,
+    "incomplete": 1,
+    "unknown": 0
+   },
+   "tls_versions": {
+    "SSL3": 0,
+    "TLS1.0": 0,
+    "TLS1.1": 0,
+    "TLS1.2": 0,
+    "TLS1.3": 1
+   },
+   "cipher_suites": {
+    "top": [
+     {
+      "cipher_suite": "TLS_AES_256_GCM_SHA384",
+      "handshakes": 1
+     }
+    ],
+    "other": null,
+    "total_groups": 1,
+    "limit": 20
+   },
+   "process_attribution": {
+    "attributed": 3,
+    "not_found": 0,
+    "unavailable": 0
+   },
+   "certificate_validity": {
+    "expiring_days": {
+     "value": 30,
+     "source": "default"
+    },
+    "now": {
+     "valid": 1,
+     "expiring": 0,
+     "expired": 0,
+     "not_yet_valid": 1
+    }
+   },
+   "issues": {
+    "errors": {
+     "total": 0,
+     "enumerate": 0,
+     "probe": 0
+    },
+    "rejected": 0,
+    "seq_conflicts": 0
+   },
+   "scan": {
+    "stop_reason": "completed",
+    "enumeration": "ok",
+    "listeners_found": 3,
+    "port_filtered": 0,
+    "policy_skipped": 0,
+    "targets_planned": 3,
+    "targets_probed": 3,
+    "targets_truncated": false
+   }
+  },
+  "observations": {
+   "items": [
+    {
+     "seq": 0,
+     "observed_at": "2026-10-10T11:23:56Z",
+     "direction": "unknown",
+     "transport": "tcp",
+     "src_ip": "127.0.0.1",
+     "src_port": 63724,
+     "dst_ip": "127.0.0.1",
+     "dst_port": 63715,
+     "handshake_outcome": "completed",
+     "sni": null,
+     "tls_version": "TLS1.3",
+     "cipher_suite": "TLS_AES_256_GCM_SHA384",
+     "cert_visibility": "visible",
+     "pid": 4321,
+     "process_name": "python.exe",
+     "exe_path": "C:\\Python\\python.exe",
+     "process_attribution": "attributed",
+     "event_count": 1,
+     "packet_count": 0,
+     "event_counts": {
+      "handshake_completed": 1,
+      "probe_attempts": 1
+     },
+     "evidence_confidence": "high",
+     "warnings": [
+      "active_probe",
+      "packet_counts_unavailable"
+     ],
+     "peer_certificates": [
+      {
+       "position": 0,
+       "sha256": "802ca49aa42050b0112499bb5d7a645b83c965ec4820d60f5ce4634373dd94b1",
+       "subject": "CN=probe-test.local",
+       "issuer": "CN=Test Intermediate",
+       "not_before": "2026-10-09T11:23:55Z",
+       "not_after": "2027-10-10T11:23:55Z",
+       "key_algorithm": "RSA",
+       "key_size": 2048,
+       "key_curve": null,
+       "signature_algorithm": "sha256WithRSAEncryption",
+       "is_ca": false
+      },
+      {
+       "position": 1,
+       "sha256": "106c7bca8c86e78fd8102338ac20a41088544c0774d578afd7e0f424c08325f0",
+       "subject": "CN=Test Intermediate",
+       "issuer": "CN=Test Root",
+       "not_before": "2026-10-09T11:23:55Z",
+       "not_after": "2027-10-10T11:23:55Z",
+       "key_algorithm": "RSA",
+       "key_size": 2048,
+       "key_curve": null,
+       "signature_algorithm": "sha256WithRSAEncryption",
+       "is_ca": true
+      },
+      {
+       "position": 2,
+       "sha256": "7e358b42c5bfbab1b0724e32c0934a29eaab49c632a3eec4d49e0250f1d7157f",
+       "subject": "CN=Test Root",
+       "issuer": "CN=Test Root",
+       "not_before": "2026-10-09T11:23:55Z",
+       "not_after": "2027-10-10T11:23:55Z",
+       "key_algorithm": "RSA",
+       "key_size": 2048,
+       "key_curve": null,
+       "signature_algorithm": "sha256WithRSAEncryption",
+       "is_ca": true
+      }
+     ]
+    },
+    {
+     "seq": 1,
+     "observed_at": "2026-10-10T11:23:56Z",
+     "direction": "unknown",
+     "transport": "tcp",
+     "src_ip": "127.0.0.1",
+     "src_port": 63725,
+     "dst_ip": "127.0.0.1",
+     "dst_port": 63716,
+     "handshake_outcome": "failed",
+     "sni": null,
+     "tls_version": null,
+     "cipher_suite": null,
+     "cert_visibility": "not_observed",
+     "pid": 4321,
+     "process_name": "python.exe",
+     "exe_path": "C:\\Python\\python.exe",
+     "process_attribution": "attributed",
+     "event_count": 1,
+     "packet_count": 0,
+     "event_counts": {
+      "handshake_completed": 0,
+      "probe_attempts": 1
+     },
+     "evidence_confidence": "low",
+     "warnings": [
+      "active_probe",
+      "packet_counts_unavailable",
+      "handshake_failed"
+     ],
+     "peer_certificates": []
+    },
+    {
+     "seq": 2,
+     "observed_at": "2026-10-10T11:23:57Z",
+     "direction": "unknown",
+     "transport": "tcp",
+     "src_ip": "127.0.0.1",
+     "src_port": 63726,
+     "dst_ip": "127.0.0.1",
+     "dst_port": 63717,
+     "handshake_outcome": "incomplete",
+     "sni": null,
+     "tls_version": null,
+     "cipher_suite": null,
+     "cert_visibility": "not_observed",
+     "pid": 4321,
+     "process_name": "python.exe",
+     "exe_path": "C:\\Python\\python.exe",
+     "process_attribution": "attributed",
+     "event_count": 1,
+     "packet_count": 0,
+     "event_counts": {
+      "handshake_completed": 0,
+      "probe_attempts": 1
+     },
+     "evidence_confidence": "low",
+     "warnings": [
+      "active_probe",
+      "packet_counts_unavailable",
+      "handshake_timeout"
+     ],
+     "peer_certificates": []
+    }
+   ],
+   "total": 3,
+   "limit": 100,
+   "offset": 0,
+   "frontier": 3
+  },
+  "issues": {
+   "items": [],
+   "total": 0,
+   "limit": 50,
+   "offset": 0
+  }
+ },
+ "detail_sha256": "802ca49aa42050b0112499bb5d7a645b83c965ec4820d60f5ce4634373dd94b1",
+ "detail": {
+  "sha256": "802ca49aa42050b0112499bb5d7a645b83c965ec4820d60f5ce4634373dd94b1",
+  "serial_hex": "1c5e2dc17fd688fb0f7d961d444dd321c7ad1202",
+  "subject": "CN=probe-test.local",
+  "issuer": "CN=Test Intermediate",
+  "san": [
+   {
+    "type": "dns",
+    "value": "probe-test.local"
+   }
+  ],
+  "key_algorithm": "RSA",
+  "key_size": 2048,
+  "key_curve": null,
+  "signature_algorithm": "sha256WithRSAEncryption",
+  "not_before": "2026-10-09T11:23:55Z",
+  "not_after": "2027-10-10T11:23:55Z",
+  "is_ca": false,
+  "sightings_total": 0,
+  "runs_total": 0,
+  "runs_truncated": false,
+  "runs": []
+ },
+ "zero_listeners": {
+  "run": {
+   "run_id": "62209befdc4f405ebd204ba2ba620735",
+   "run_number": 2,
+   "type": "tls",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "completed",
+   "config": {},
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "completed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 0,
+   "finding_count": 0,
+   "rejected_count": 0,
+   "error_count": 0,
+   "error_summary": null,
+   "agent_summary": {
+    "complete": true,
+    "elapsed_seconds": 0.0,
+    "enumeration": "ok",
+    "errors_total": 0,
+    "handshakes_completed": 0,
+    "listeners_found": 0,
+    "policy_skipped": 0,
+    "port_filtered": 0,
+    "records": 0,
+    "records_by_outcome": {},
+    "stop_reason": "completed",
+    "targets_planned": 0,
+    "targets_probed": 0,
+    "targets_truncated": false
+   }
+  },
+  "summary": {
+   "run": {
+    "run_id": "62209befdc4f405ebd204ba2ba620735",
+    "run_number": 2,
+    "type": "tls",
+    "status": "completed",
+    "final": true,
+    "started_at": "2026-03-01T12:00:00.000Z",
+    "finished_at": "2026-03-01T12:00:00.000Z"
+   },
+   "as_of": "2026-03-01T12:00:00.000Z",
+   "frontier": 0,
+   "frontier_scope": {
+    "frozen": [
+     "totals",
+     "outcomes",
+     "tls_versions",
+     "cipher_suites",
+     "process_attribution",
+     "certificate_validity"
+    ],
+    "live": [
+     "issues",
+     "scan"
+    ]
+   },
+   "totals": {
+    "probe_attempts": 0,
+    "handshakes_completed": 0,
+    "not_completed": 0,
+    "endpoints": 0,
+    "certificates_presented": 0,
+    "leaf_certificates": 0
+   },
+   "outcomes": {
+    "completed": 0,
+    "failed": 0,
+    "alert": 0,
+    "incomplete": 0,
+    "unknown": 0
+   },
+   "tls_versions": {
+    "SSL3": 0,
+    "TLS1.0": 0,
+    "TLS1.1": 0,
+    "TLS1.2": 0,
+    "TLS1.3": 0
+   },
+   "cipher_suites": {
+    "top": [],
+    "other": null,
+    "total_groups": 0,
+    "limit": 20
+   },
+   "process_attribution": {
+    "attributed": 0,
+    "not_found": 0,
+    "unavailable": 0
+   },
+   "certificate_validity": {
+    "expiring_days": {
+     "value": 30,
+     "source": "default"
+    },
+    "now": {
+     "valid": 0,
+     "expiring": 0,
+     "expired": 0,
+     "not_yet_valid": 0
+    }
+   },
+   "issues": {
+    "errors": {
+     "total": 0,
+     "enumerate": 0,
+     "probe": 0
+    },
+    "rejected": 0,
+    "seq_conflicts": 0
+   },
+   "scan": {
+    "stop_reason": "completed",
+    "enumeration": "ok",
+    "listeners_found": 0,
+    "port_filtered": 0,
+    "policy_skipped": 0,
+    "targets_planned": 0,
+    "targets_probed": 0,
+    "targets_truncated": false
+   }
+  },
+  "observations": {
+   "items": [],
+   "total": 0,
+   "limit": 100,
+   "offset": 0,
+   "frontier": 0
+  },
+  "issues": {
+   "items": [],
+   "total": 0,
+   "limit": 50,
+   "offset": 0
+  }
+ },
+ "enumeration_failed": {
+  "run": {
+   "run_id": "73bf26ffc9d045d5bc4c5fdf476c8f00",
+   "run_number": 3,
+   "type": "tls",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "failed",
+   "config": {},
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "enumeration_failed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 0,
+   "finding_count": 0,
+   "rejected_count": 0,
+   "error_count": 1,
+   "error_summary": "no_usable_data, stopped_enumeration_failed, file_errors:1",
+   "agent_summary": {
+    "complete": false,
+    "elapsed_seconds": 0.0,
+    "enumeration": "failed",
+    "errors_total": 1,
+    "handshakes_completed": 0,
+    "listeners_found": 0,
+    "policy_skipped": 0,
+    "port_filtered": 0,
+    "records": 0,
+    "records_by_outcome": {},
+    "stop_reason": "enumeration_failed",
+    "targets_planned": 0,
+    "targets_probed": 0,
+    "targets_truncated": false
+   }
+  },
+  "summary": {
+   "run": {
+    "run_id": "73bf26ffc9d045d5bc4c5fdf476c8f00",
+    "run_number": 3,
+    "type": "tls",
+    "status": "failed",
+    "final": true,
+    "started_at": "2026-03-01T12:00:00.000Z",
+    "finished_at": "2026-03-01T12:00:00.000Z"
+   },
+   "as_of": "2026-03-01T12:00:00.000Z",
+   "frontier": 0,
+   "frontier_scope": {
+    "frozen": [
+     "totals",
+     "outcomes",
+     "tls_versions",
+     "cipher_suites",
+     "process_attribution",
+     "certificate_validity"
+    ],
+    "live": [
+     "issues",
+     "scan"
+    ]
+   },
+   "totals": {
+    "probe_attempts": 0,
+    "handshakes_completed": 0,
+    "not_completed": 0,
+    "endpoints": 0,
+    "certificates_presented": 0,
+    "leaf_certificates": 0
+   },
+   "outcomes": {
+    "completed": 0,
+    "failed": 0,
+    "alert": 0,
+    "incomplete": 0,
+    "unknown": 0
+   },
+   "tls_versions": {
+    "SSL3": 0,
+    "TLS1.0": 0,
+    "TLS1.1": 0,
+    "TLS1.2": 0,
+    "TLS1.3": 0
+   },
+   "cipher_suites": {
+    "top": [],
+    "other": null,
+    "total_groups": 0,
+    "limit": 20
+   },
+   "process_attribution": {
+    "attributed": 0,
+    "not_found": 0,
+    "unavailable": 0
+   },
+   "certificate_validity": {
+    "expiring_days": {
+     "value": 30,
+     "source": "default"
+    },
+    "now": {
+     "valid": 0,
+     "expiring": 0,
+     "expired": 0,
+     "not_yet_valid": 0
+    }
+   },
+   "issues": {
+    "errors": {
+     "total": 1,
+     "enumerate": 1,
+     "probe": 0
+    },
+    "rejected": 0,
+    "seq_conflicts": 0
+   },
+   "scan": {
+    "stop_reason": "enumeration_failed",
+    "enumeration": "failed",
+    "listeners_found": 0,
+    "port_filtered": 0,
+    "policy_skipped": 0,
+    "targets_planned": 0,
+    "targets_probed": 0,
+    "targets_truncated": false
+   }
+  },
+  "observations": {
+   "items": [],
+   "total": 0,
+   "limit": 100,
+   "offset": 0,
+   "frontier": 0
+  },
+  "issues": {
+   "items": [
+    {
+     "source": "agent",
+     "kind": "enumerate",
+     "code": "table_unreadable",
+     "path": null,
+     "seq": null
+    }
+   ],
+   "total": 1,
+   "limit": 50,
+   "offset": 0
+  }
+ }
+}

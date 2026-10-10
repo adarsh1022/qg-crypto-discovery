@@ -1,0 +1,1573 @@
+{
+ "completed": {
+  "run": {
+   "run_id": "4ea1a9d77d61459c90cfe2034623dbc4",
+   "run_number": 1,
+   "type": "filesystem",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "completed",
+   "config": {
+    "roots": [
+     "C:\\certs-root\\certs"
+    ]
+   },
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "completed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 8,
+   "finding_count": 6,
+   "rejected_count": 0,
+   "error_count": 0,
+   "error_summary": null,
+   "agent_summary": {
+    "bundles_truncated": 0,
+    "candidate_files": 5,
+    "complete": true,
+    "directories_visited": 5,
+    "duplicate_observations": 3,
+    "elapsed_seconds": 0.14,
+    "entries_visited": 9,
+    "errors_total": 0,
+    "files_read": 5,
+    "records": 8,
+    "records_by_status": {
+     "no_certificate": 2,
+     "ok": 6
+    },
+    "roots": [
+     {
+      "root": "C:\\certs-root\\certs",
+      "status": "scanned"
+     }
+    ],
+    "skipped": {},
+    "stop_reason": "completed",
+    "unique_certificates": 3
+   }
+  },
+  "summary": {
+   "run": {
+    "run_id": "4ea1a9d77d61459c90cfe2034623dbc4",
+    "run_number": 1,
+    "type": "filesystem",
+    "status": "completed",
+    "final": true,
+    "started_at": "2026-03-01T12:00:00.000Z",
+    "finished_at": "2026-03-01T12:00:00.000Z"
+   },
+   "as_of": "2026-03-01T12:00:00.000Z",
+   "frontier": 8,
+   "frontier_scope": {
+    "frozen": [
+     "totals",
+     "parse_status",
+     "formats",
+     "validity",
+     "expiry_buckets",
+     "algorithms",
+     "signature_algorithms",
+     "issuers",
+     "locations",
+     "issues.errors.file_errors"
+    ],
+    "live": [
+     "issues.errors.directory_errors",
+     "issues.errors.unresolved_read_errors",
+     "issues.rejected",
+     "issues.seq_conflicts"
+    ]
+   },
+   "expiring_days": {
+    "value": 30,
+    "source": "default"
+   },
+   "totals": {
+    "records": 8,
+    "sightings": 6,
+    "unique_certificates": 3,
+    "duplicate_observations": {
+     "total": 3,
+     "within_file": 1,
+     "across_files": 2
+    },
+    "parse_failures": 0,
+    "no_certificate": 2,
+    "skipped": 0
+   },
+   "parse_status": {
+    "ok": 6,
+    "malformed": 0,
+    "unsupported": 0,
+    "too_large": 0,
+    "no_certificate": 2,
+    "access_denied": 0,
+    "read_error": 0,
+    "skipped": 0
+   },
+   "formats": {
+    "pem": 3,
+    "der": 1,
+    "pkcs12": 4,
+    "unknown": 0
+   },
+   "validity": {
+    "at_discovery": {
+     "valid": 6,
+     "expiring": 0,
+     "expired": 0,
+     "not_yet_valid": 0
+    },
+    "now": {
+     "unique": {
+      "valid": 3,
+      "expiring": 0,
+      "expired": 0,
+      "not_yet_valid": 0
+     },
+     "sightings": {
+      "valid": 6,
+      "expiring": 0,
+      "expired": 0,
+      "not_yet_valid": 0
+     }
+    }
+   },
+   "expiry_buckets": {
+    "definitions": [
+     "expired",
+     "0-30",
+     "31-90",
+     "91-365",
+     "over-365"
+    ],
+    "at_discovery": {
+     "expired": 0,
+     "0-30": 0,
+     "31-90": 0,
+     "91-365": 0,
+     "over-365": 6
+    },
+    "now": {
+     "unique": {
+      "expired": 0,
+      "0-30": 0,
+      "31-90": 0,
+      "91-365": 0,
+      "over-365": 3
+     },
+     "sightings": {
+      "expired": 0,
+      "0-30": 0,
+      "31-90": 0,
+      "91-365": 0,
+      "over-365": 6
+     }
+    }
+   },
+   "algorithms": {
+    "top": [
+     {
+      "key_algorithm": "RSA",
+      "key_size": 2048,
+      "key_curve": null,
+      "unique": 1,
+      "sightings": 3
+     },
+     {
+      "key_algorithm": "EC",
+      "key_size": 384,
+      "key_curve": "P-384",
+      "unique": 1,
+      "sightings": 2
+     },
+     {
+      "key_algorithm": "EC",
+      "key_size": 256,
+      "key_curve": "P-256",
+      "unique": 1,
+      "sightings": 1
+     }
+    ],
+    "other": null,
+    "total_groups": 3,
+    "limit": 20
+   },
+   "signature_algorithms": {
+    "top": [
+     {
+      "signature_algorithm": "ecdsa-with-SHA256",
+      "unique": 3,
+      "sightings": 6
+     }
+    ],
+    "other": null,
+    "total_groups": 1,
+    "limit": 20
+   },
+   "issuers": {
+    "top": [
+     {
+      "issuer": "CN=Root",
+      "unique": 2,
+      "sightings": 3
+     },
+     {
+      "issuer": "CN=Inter",
+      "unique": 1,
+      "sightings": 3
+     }
+    ],
+    "other": null,
+    "total_groups": 2,
+    "limit": 20
+   },
+   "locations": {
+    "scan_roots": {
+     "top": [
+      {
+       "scan_root": "C:\\certs-root\\certs",
+       "observations": 8,
+       "sightings": 6,
+       "unique": 3
+      }
+     ],
+     "other": null,
+     "total_groups": 1,
+     "limit": 100
+    },
+    "directories": {
+     "top": [
+      {
+       "directory": "C:\\certs-root\\certs\\store\\",
+       "sightings": 4,
+       "unique": 3
+      },
+      {
+       "directory": "C:\\certs-root\\certs\\app\\",
+       "sightings": 1,
+       "unique": 1
+      },
+      {
+       "directory": "C:\\certs-root\\certs\\backup\\",
+       "sightings": 1,
+       "unique": 1
+      }
+     ],
+     "other": null,
+     "total_groups": 3,
+     "limit": 20
+    }
+   },
+   "issues": {
+    "errors": {
+     "total": 0,
+     "file_errors": 0,
+     "directory_errors": 0,
+     "unresolved_read_errors": 0
+    },
+    "rejected": 0,
+    "seq_conflicts": 0
+   }
+  },
+  "certificates": {
+   "items": [
+    {
+     "sha256": "4a8f8cb13f9f74c895f3320e741d708178813fa23175148cfec46a0978786c0f",
+     "subject": "CN=Root",
+     "issuer": "CN=Root",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "key_algorithm": "EC",
+     "key_size": 256,
+     "key_curve": "P-256",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "sightings": 1,
+     "paths": 1
+    },
+    {
+     "sha256": "647dc8d8d45fcad3fd911f5c60339e91bf3de93ef46f03a363b3b6bc6190fa93",
+     "subject": "CN=leaf",
+     "issuer": "CN=Inter",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "key_algorithm": "RSA",
+     "key_size": 2048,
+     "key_curve": null,
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "sightings": 3,
+     "paths": 3
+    },
+    {
+     "sha256": "875dea7fcb8f96c01e2771ea171e129245d6821310f17e7d564599e5359c2d6d",
+     "subject": "CN=Inter",
+     "issuer": "CN=Root",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "key_algorithm": "EC",
+     "key_size": 384,
+     "key_curve": "P-384",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "sightings": 2,
+     "paths": 1
+    }
+   ],
+   "total": 3,
+   "limit": 50,
+   "offset": 0,
+   "frontier": 8
+  },
+  "observations": {
+   "items": [
+    {
+     "seq": 0,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\app\\server.pem",
+     "filename": "server.pem",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pem",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "647dc8d8d45fcad3fd911f5c60339e91bf3de93ef46f03a363b3b6bc6190fa93",
+     "chain_index": 0,
+     "chain_total": 1,
+     "chain_role": "leaf",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "none",
+     "serial_hex": "12d687",
+     "subject": "CN=leaf",
+     "issuer": "CN=Inter",
+     "san": [],
+     "key_algorithm": "RSA",
+     "key_size": 2048,
+     "key_curve": null,
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 1,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\backup\\server.crt",
+     "filename": "server.crt",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "der",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "647dc8d8d45fcad3fd911f5c60339e91bf3de93ef46f03a363b3b6bc6190fa93",
+     "chain_index": 0,
+     "chain_total": 1,
+     "chain_role": "leaf",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "across_files",
+     "serial_hex": "12d687",
+     "subject": "CN=leaf",
+     "issuer": "CN=Inter",
+     "san": [],
+     "key_algorithm": "RSA",
+     "key_size": 2048,
+     "key_curve": null,
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 2,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\keys\\ec.pem",
+     "filename": "ec.pem",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pem",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": null,
+     "chain_index": null,
+     "chain_total": null,
+     "chain_role": null,
+     "parse_status": "no_certificate",
+     "detail": "no_certificate_block",
+     "access_error": null,
+     "evidence_confidence": "low",
+     "validity_status": null,
+     "days_to_expiry": null,
+     "duplicate_kind": "none",
+     "serial_hex": null,
+     "subject": null,
+     "issuer": null,
+     "san": null,
+     "key_algorithm": null,
+     "key_size": null,
+     "key_curve": null,
+     "signature_algorithm": null,
+     "not_before": null,
+     "not_after": null,
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 3,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\keys\\rsa.pem",
+     "filename": "rsa.pem",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pem",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": null,
+     "chain_index": null,
+     "chain_total": null,
+     "chain_role": null,
+     "parse_status": "no_certificate",
+     "detail": "no_certificate_block",
+     "access_error": null,
+     "evidence_confidence": "low",
+     "validity_status": null,
+     "days_to_expiry": null,
+     "duplicate_kind": "none",
+     "serial_hex": null,
+     "subject": null,
+     "issuer": null,
+     "san": null,
+     "key_algorithm": null,
+     "key_size": null,
+     "key_curve": null,
+     "signature_algorithm": null,
+     "not_before": null,
+     "not_after": null,
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 4,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\store\\dup.pfx",
+     "filename": "dup.pfx",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pkcs12",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "647dc8d8d45fcad3fd911f5c60339e91bf3de93ef46f03a363b3b6bc6190fa93",
+     "chain_index": null,
+     "chain_total": 4,
+     "chain_role": "leaf",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "across_files",
+     "serial_hex": "12d687",
+     "subject": "CN=leaf",
+     "issuer": "CN=Inter",
+     "san": [],
+     "key_algorithm": "RSA",
+     "key_size": 2048,
+     "key_curve": null,
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 5,
+     "entry_ordinal": 1,
+     "path": "C:\\certs-root\\certs\\store\\dup.pfx",
+     "filename": "dup.pfx",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pkcs12",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "875dea7fcb8f96c01e2771ea171e129245d6821310f17e7d564599e5359c2d6d",
+     "chain_index": null,
+     "chain_total": 4,
+     "chain_role": "ca",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "none",
+     "serial_hex": "12d687",
+     "subject": "CN=Inter",
+     "issuer": "CN=Root",
+     "san": [],
+     "key_algorithm": "EC",
+     "key_size": 384,
+     "key_curve": "P-384",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 6,
+     "entry_ordinal": 2,
+     "path": "C:\\certs-root\\certs\\store\\dup.pfx",
+     "filename": "dup.pfx",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pkcs12",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "875dea7fcb8f96c01e2771ea171e129245d6821310f17e7d564599e5359c2d6d",
+     "chain_index": null,
+     "chain_total": 4,
+     "chain_role": "ca",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "within_file",
+     "serial_hex": "12d687",
+     "subject": "CN=Inter",
+     "issuer": "CN=Root",
+     "san": [],
+     "key_algorithm": "EC",
+     "key_size": 384,
+     "key_curve": "P-384",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 7,
+     "entry_ordinal": 3,
+     "path": "C:\\certs-root\\certs\\store\\dup.pfx",
+     "filename": "dup.pfx",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pkcs12",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "4a8f8cb13f9f74c895f3320e741d708178813fa23175148cfec46a0978786c0f",
+     "chain_index": null,
+     "chain_total": 4,
+     "chain_role": "self_signed",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "none",
+     "serial_hex": "12d687",
+     "subject": "CN=Root",
+     "issuer": "CN=Root",
+     "san": [],
+     "key_algorithm": "EC",
+     "key_size": 256,
+     "key_curve": "P-256",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    }
+   ],
+   "total": 8,
+   "limit": 100,
+   "offset": 0,
+   "frontier": 8
+  },
+  "issues": {
+   "items": [],
+   "total": 0,
+   "limit": 50,
+   "offset": 0
+  }
+ },
+ "failed": {
+  "run": {
+   "run_id": "377e73a7ce7f459886647c166327a2e5",
+   "run_number": 2,
+   "type": "filesystem",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "failed",
+   "config": {
+    "roots": [
+     "C:\\certs-root\\does-not-exist"
+    ]
+   },
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "completed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 0,
+   "finding_count": 0,
+   "rejected_count": 0,
+   "error_count": 1,
+   "error_summary": "no_usable_data, roots_not_scanned:1, file_errors:1",
+   "agent_summary": {
+    "bundles_truncated": 0,
+    "candidate_files": 0,
+    "complete": true,
+    "directories_visited": 0,
+    "duplicate_observations": 0,
+    "elapsed_seconds": 0.0,
+    "entries_visited": 0,
+    "errors_total": 1,
+    "files_read": 0,
+    "records": 0,
+    "records_by_status": {},
+    "roots": [
+     {
+      "root": "C:\\certs-root\\does-not-exist",
+      "status": "not_found"
+     }
+    ],
+    "skipped": {},
+    "stop_reason": "completed",
+    "unique_certificates": 0
+   }
+  },
+  "summary": {
+   "run": {
+    "run_id": "377e73a7ce7f459886647c166327a2e5",
+    "run_number": 2,
+    "type": "filesystem",
+    "status": "failed",
+    "final": true,
+    "started_at": "2026-03-01T12:00:00.000Z",
+    "finished_at": "2026-03-01T12:00:00.000Z"
+   },
+   "as_of": "2026-03-01T12:00:00.000Z",
+   "frontier": 0,
+   "frontier_scope": {
+    "frozen": [
+     "totals",
+     "parse_status",
+     "formats",
+     "validity",
+     "expiry_buckets",
+     "algorithms",
+     "signature_algorithms",
+     "issuers",
+     "locations",
+     "issues.errors.file_errors"
+    ],
+    "live": [
+     "issues.errors.directory_errors",
+     "issues.errors.unresolved_read_errors",
+     "issues.rejected",
+     "issues.seq_conflicts"
+    ]
+   },
+   "expiring_days": {
+    "value": 30,
+    "source": "default"
+   },
+   "totals": {
+    "records": 0,
+    "sightings": 0,
+    "unique_certificates": 0,
+    "duplicate_observations": {
+     "total": 0,
+     "within_file": 0,
+     "across_files": 0
+    },
+    "parse_failures": 0,
+    "no_certificate": 0,
+    "skipped": 0
+   },
+   "parse_status": {
+    "ok": 0,
+    "malformed": 0,
+    "unsupported": 0,
+    "too_large": 0,
+    "no_certificate": 0,
+    "access_denied": 0,
+    "read_error": 0,
+    "skipped": 0
+   },
+   "formats": {
+    "pem": 0,
+    "der": 0,
+    "pkcs12": 0,
+    "unknown": 0
+   },
+   "validity": {
+    "at_discovery": {
+     "valid": 0,
+     "expiring": 0,
+     "expired": 0,
+     "not_yet_valid": 0
+    },
+    "now": {
+     "unique": {
+      "valid": 0,
+      "expiring": 0,
+      "expired": 0,
+      "not_yet_valid": 0
+     },
+     "sightings": {
+      "valid": 0,
+      "expiring": 0,
+      "expired": 0,
+      "not_yet_valid": 0
+     }
+    }
+   },
+   "expiry_buckets": {
+    "definitions": [
+     "expired",
+     "0-30",
+     "31-90",
+     "91-365",
+     "over-365"
+    ],
+    "at_discovery": {
+     "expired": 0,
+     "0-30": 0,
+     "31-90": 0,
+     "91-365": 0,
+     "over-365": 0
+    },
+    "now": {
+     "unique": {
+      "expired": 0,
+      "0-30": 0,
+      "31-90": 0,
+      "91-365": 0,
+      "over-365": 0
+     },
+     "sightings": {
+      "expired": 0,
+      "0-30": 0,
+      "31-90": 0,
+      "91-365": 0,
+      "over-365": 0
+     }
+    }
+   },
+   "algorithms": {
+    "top": [],
+    "other": null,
+    "total_groups": 0,
+    "limit": 20
+   },
+   "signature_algorithms": {
+    "top": [],
+    "other": null,
+    "total_groups": 0,
+    "limit": 20
+   },
+   "issuers": {
+    "top": [],
+    "other": null,
+    "total_groups": 0,
+    "limit": 20
+   },
+   "locations": {
+    "scan_roots": {
+     "top": [],
+     "other": null,
+     "total_groups": 0,
+     "limit": 100
+    },
+    "directories": {
+     "top": [],
+     "other": null,
+     "total_groups": 0,
+     "limit": 20
+    }
+   },
+   "issues": {
+    "errors": {
+     "total": 1,
+     "file_errors": 0,
+     "directory_errors": 1,
+     "unresolved_read_errors": 0
+    },
+    "rejected": 0,
+    "seq_conflicts": 0
+   }
+  },
+  "certificates": {
+   "items": [],
+   "total": 0,
+   "limit": 50,
+   "offset": 0,
+   "frontier": 0
+  },
+  "observations": {
+   "items": [],
+   "total": 0,
+   "limit": 100,
+   "offset": 0,
+   "frontier": 0
+  },
+  "issues": {
+   "items": [
+    {
+     "source": "agent",
+     "kind": "root",
+     "code": "FileNotFoundError:WinError 2",
+     "path": "C:\\certs-root\\does-not-exist",
+     "seq": null
+    }
+   ],
+   "total": 1,
+   "limit": 50,
+   "offset": 0
+  }
+ },
+ "partial": {
+  "run": {
+   "run_id": "a5d5fe244d554ac4983df9ef554b4e86",
+   "run_number": 3,
+   "type": "filesystem",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "partial",
+   "config": {
+    "roots": [
+     "C:\\certs-root\\certs",
+     "C:\\certs-root\\missing-too"
+    ]
+   },
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "completed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 8,
+   "finding_count": 6,
+   "rejected_count": 0,
+   "error_count": 1,
+   "error_summary": "roots_not_scanned:1, file_errors:1",
+   "agent_summary": {
+    "bundles_truncated": 0,
+    "candidate_files": 5,
+    "complete": true,
+    "directories_visited": 5,
+    "duplicate_observations": 3,
+    "elapsed_seconds": 0.093,
+    "entries_visited": 9,
+    "errors_total": 1,
+    "files_read": 5,
+    "records": 8,
+    "records_by_status": {
+     "no_certificate": 2,
+     "ok": 6
+    },
+    "roots": [
+     {
+      "root": "C:\\certs-root\\certs",
+      "status": "scanned"
+     },
+     {
+      "root": "C:\\certs-root\\missing-too",
+      "status": "not_found"
+     }
+    ],
+    "skipped": {},
+    "stop_reason": "completed",
+    "unique_certificates": 3
+   }
+  },
+  "summary": {
+   "run": {
+    "run_id": "a5d5fe244d554ac4983df9ef554b4e86",
+    "run_number": 3,
+    "type": "filesystem",
+    "status": "partial",
+    "final": true,
+    "started_at": "2026-03-01T12:00:00.000Z",
+    "finished_at": "2026-03-01T12:00:00.000Z"
+   },
+   "as_of": "2026-03-01T12:00:00.000Z",
+   "frontier": 16,
+   "frontier_scope": {
+    "frozen": [
+     "totals",
+     "parse_status",
+     "formats",
+     "validity",
+     "expiry_buckets",
+     "algorithms",
+     "signature_algorithms",
+     "issuers",
+     "locations",
+     "issues.errors.file_errors"
+    ],
+    "live": [
+     "issues.errors.directory_errors",
+     "issues.errors.unresolved_read_errors",
+     "issues.rejected",
+     "issues.seq_conflicts"
+    ]
+   },
+   "expiring_days": {
+    "value": 30,
+    "source": "default"
+   },
+   "totals": {
+    "records": 8,
+    "sightings": 6,
+    "unique_certificates": 3,
+    "duplicate_observations": {
+     "total": 3,
+     "within_file": 1,
+     "across_files": 2
+    },
+    "parse_failures": 0,
+    "no_certificate": 2,
+    "skipped": 0
+   },
+   "parse_status": {
+    "ok": 6,
+    "malformed": 0,
+    "unsupported": 0,
+    "too_large": 0,
+    "no_certificate": 2,
+    "access_denied": 0,
+    "read_error": 0,
+    "skipped": 0
+   },
+   "formats": {
+    "pem": 3,
+    "der": 1,
+    "pkcs12": 4,
+    "unknown": 0
+   },
+   "validity": {
+    "at_discovery": {
+     "valid": 6,
+     "expiring": 0,
+     "expired": 0,
+     "not_yet_valid": 0
+    },
+    "now": {
+     "unique": {
+      "valid": 3,
+      "expiring": 0,
+      "expired": 0,
+      "not_yet_valid": 0
+     },
+     "sightings": {
+      "valid": 6,
+      "expiring": 0,
+      "expired": 0,
+      "not_yet_valid": 0
+     }
+    }
+   },
+   "expiry_buckets": {
+    "definitions": [
+     "expired",
+     "0-30",
+     "31-90",
+     "91-365",
+     "over-365"
+    ],
+    "at_discovery": {
+     "expired": 0,
+     "0-30": 0,
+     "31-90": 0,
+     "91-365": 0,
+     "over-365": 6
+    },
+    "now": {
+     "unique": {
+      "expired": 0,
+      "0-30": 0,
+      "31-90": 0,
+      "91-365": 0,
+      "over-365": 3
+     },
+     "sightings": {
+      "expired": 0,
+      "0-30": 0,
+      "31-90": 0,
+      "91-365": 0,
+      "over-365": 6
+     }
+    }
+   },
+   "algorithms": {
+    "top": [
+     {
+      "key_algorithm": "RSA",
+      "key_size": 2048,
+      "key_curve": null,
+      "unique": 1,
+      "sightings": 3
+     },
+     {
+      "key_algorithm": "EC",
+      "key_size": 384,
+      "key_curve": "P-384",
+      "unique": 1,
+      "sightings": 2
+     },
+     {
+      "key_algorithm": "EC",
+      "key_size": 256,
+      "key_curve": "P-256",
+      "unique": 1,
+      "sightings": 1
+     }
+    ],
+    "other": null,
+    "total_groups": 3,
+    "limit": 20
+   },
+   "signature_algorithms": {
+    "top": [
+     {
+      "signature_algorithm": "ecdsa-with-SHA256",
+      "unique": 3,
+      "sightings": 6
+     }
+    ],
+    "other": null,
+    "total_groups": 1,
+    "limit": 20
+   },
+   "issuers": {
+    "top": [
+     {
+      "issuer": "CN=Root",
+      "unique": 2,
+      "sightings": 3
+     },
+     {
+      "issuer": "CN=Inter",
+      "unique": 1,
+      "sightings": 3
+     }
+    ],
+    "other": null,
+    "total_groups": 2,
+    "limit": 20
+   },
+   "locations": {
+    "scan_roots": {
+     "top": [
+      {
+       "scan_root": "C:\\certs-root\\certs",
+       "observations": 8,
+       "sightings": 6,
+       "unique": 3
+      }
+     ],
+     "other": null,
+     "total_groups": 1,
+     "limit": 100
+    },
+    "directories": {
+     "top": [
+      {
+       "directory": "C:\\certs-root\\certs\\store\\",
+       "sightings": 4,
+       "unique": 3
+      },
+      {
+       "directory": "C:\\certs-root\\certs\\app\\",
+       "sightings": 1,
+       "unique": 1
+      },
+      {
+       "directory": "C:\\certs-root\\certs\\backup\\",
+       "sightings": 1,
+       "unique": 1
+      }
+     ],
+     "other": null,
+     "total_groups": 3,
+     "limit": 20
+    }
+   },
+   "issues": {
+    "errors": {
+     "total": 1,
+     "file_errors": 0,
+     "directory_errors": 1,
+     "unresolved_read_errors": 0
+    },
+    "rejected": 0,
+    "seq_conflicts": 0
+   }
+  },
+  "certificates": {
+   "items": [
+    {
+     "sha256": "4a8f8cb13f9f74c895f3320e741d708178813fa23175148cfec46a0978786c0f",
+     "subject": "CN=Root",
+     "issuer": "CN=Root",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "key_algorithm": "EC",
+     "key_size": 256,
+     "key_curve": "P-256",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "sightings": 1,
+     "paths": 1
+    },
+    {
+     "sha256": "647dc8d8d45fcad3fd911f5c60339e91bf3de93ef46f03a363b3b6bc6190fa93",
+     "subject": "CN=leaf",
+     "issuer": "CN=Inter",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "key_algorithm": "RSA",
+     "key_size": 2048,
+     "key_curve": null,
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "sightings": 3,
+     "paths": 3
+    },
+    {
+     "sha256": "875dea7fcb8f96c01e2771ea171e129245d6821310f17e7d564599e5359c2d6d",
+     "subject": "CN=Inter",
+     "issuer": "CN=Root",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "key_algorithm": "EC",
+     "key_size": 384,
+     "key_curve": "P-384",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "sightings": 2,
+     "paths": 1
+    }
+   ],
+   "total": 3,
+   "limit": 50,
+   "offset": 0,
+   "frontier": 16
+  },
+  "observations": {
+   "items": [
+    {
+     "seq": 0,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\app\\server.pem",
+     "filename": "server.pem",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pem",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "647dc8d8d45fcad3fd911f5c60339e91bf3de93ef46f03a363b3b6bc6190fa93",
+     "chain_index": 0,
+     "chain_total": 1,
+     "chain_role": "leaf",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "none",
+     "serial_hex": "12d687",
+     "subject": "CN=leaf",
+     "issuer": "CN=Inter",
+     "san": [],
+     "key_algorithm": "RSA",
+     "key_size": 2048,
+     "key_curve": null,
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 1,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\backup\\server.crt",
+     "filename": "server.crt",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "der",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "647dc8d8d45fcad3fd911f5c60339e91bf3de93ef46f03a363b3b6bc6190fa93",
+     "chain_index": 0,
+     "chain_total": 1,
+     "chain_role": "leaf",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "across_files",
+     "serial_hex": "12d687",
+     "subject": "CN=leaf",
+     "issuer": "CN=Inter",
+     "san": [],
+     "key_algorithm": "RSA",
+     "key_size": 2048,
+     "key_curve": null,
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 2,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\keys\\ec.pem",
+     "filename": "ec.pem",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pem",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": null,
+     "chain_index": null,
+     "chain_total": null,
+     "chain_role": null,
+     "parse_status": "no_certificate",
+     "detail": "no_certificate_block",
+     "access_error": null,
+     "evidence_confidence": "low",
+     "validity_status": null,
+     "days_to_expiry": null,
+     "duplicate_kind": "none",
+     "serial_hex": null,
+     "subject": null,
+     "issuer": null,
+     "san": null,
+     "key_algorithm": null,
+     "key_size": null,
+     "key_curve": null,
+     "signature_algorithm": null,
+     "not_before": null,
+     "not_after": null,
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 3,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\keys\\rsa.pem",
+     "filename": "rsa.pem",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pem",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": null,
+     "chain_index": null,
+     "chain_total": null,
+     "chain_role": null,
+     "parse_status": "no_certificate",
+     "detail": "no_certificate_block",
+     "access_error": null,
+     "evidence_confidence": "low",
+     "validity_status": null,
+     "days_to_expiry": null,
+     "duplicate_kind": "none",
+     "serial_hex": null,
+     "subject": null,
+     "issuer": null,
+     "san": null,
+     "key_algorithm": null,
+     "key_size": null,
+     "key_curve": null,
+     "signature_algorithm": null,
+     "not_before": null,
+     "not_after": null,
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 4,
+     "entry_ordinal": 0,
+     "path": "C:\\certs-root\\certs\\store\\dup.pfx",
+     "filename": "dup.pfx",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pkcs12",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "647dc8d8d45fcad3fd911f5c60339e91bf3de93ef46f03a363b3b6bc6190fa93",
+     "chain_index": null,
+     "chain_total": 4,
+     "chain_role": "leaf",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "across_files",
+     "serial_hex": "12d687",
+     "subject": "CN=leaf",
+     "issuer": "CN=Inter",
+     "san": [],
+     "key_algorithm": "RSA",
+     "key_size": 2048,
+     "key_curve": null,
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 5,
+     "entry_ordinal": 1,
+     "path": "C:\\certs-root\\certs\\store\\dup.pfx",
+     "filename": "dup.pfx",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pkcs12",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "875dea7fcb8f96c01e2771ea171e129245d6821310f17e7d564599e5359c2d6d",
+     "chain_index": null,
+     "chain_total": 4,
+     "chain_role": "ca",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "none",
+     "serial_hex": "12d687",
+     "subject": "CN=Inter",
+     "issuer": "CN=Root",
+     "san": [],
+     "key_algorithm": "EC",
+     "key_size": 384,
+     "key_curve": "P-384",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 6,
+     "entry_ordinal": 2,
+     "path": "C:\\certs-root\\certs\\store\\dup.pfx",
+     "filename": "dup.pfx",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pkcs12",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "875dea7fcb8f96c01e2771ea171e129245d6821310f17e7d564599e5359c2d6d",
+     "chain_index": null,
+     "chain_total": 4,
+     "chain_role": "ca",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "within_file",
+     "serial_hex": "12d687",
+     "subject": "CN=Inter",
+     "issuer": "CN=Root",
+     "san": [],
+     "key_algorithm": "EC",
+     "key_size": 384,
+     "key_curve": "P-384",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    },
+    {
+     "seq": 7,
+     "entry_ordinal": 3,
+     "path": "C:\\certs-root\\certs\\store\\dup.pfx",
+     "filename": "dup.pfx",
+     "scan_root": "C:\\certs-root\\certs",
+     "format": "pkcs12",
+     "discovered_at": "2026-10-10T09:15:15Z",
+     "sha256": "4a8f8cb13f9f74c895f3320e741d708178813fa23175148cfec46a0978786c0f",
+     "chain_index": null,
+     "chain_total": 4,
+     "chain_role": "self_signed",
+     "parse_status": "ok",
+     "detail": null,
+     "access_error": null,
+     "evidence_confidence": "high",
+     "validity_status": "valid",
+     "days_to_expiry": 2639,
+     "duplicate_kind": "none",
+     "serial_hex": "12d687",
+     "subject": "CN=Root",
+     "issuer": "CN=Root",
+     "san": [],
+     "key_algorithm": "EC",
+     "key_size": 256,
+     "key_curve": "P-256",
+     "signature_algorithm": "ecdsa-with-SHA256",
+     "not_before": "2024-01-01T00:00:00Z",
+     "not_after": "2034-01-01T00:00:00Z",
+     "warnings": [],
+     "owning_process": null
+    }
+   ],
+   "total": 8,
+   "limit": 100,
+   "offset": 0,
+   "frontier": 16
+  },
+  "issues": {
+   "items": [
+    {
+     "source": "agent",
+     "kind": "root",
+     "code": "FileNotFoundError:WinError 2",
+     "path": "C:\\certs-root\\missing-too",
+     "seq": null
+    }
+   ],
+   "total": 1,
+   "limit": 50,
+   "offset": 0
+  }
+ },
+ "detail": {
+  "sha256": "4a8f8cb13f9f74c895f3320e741d708178813fa23175148cfec46a0978786c0f",
+  "serial_hex": "12d687",
+  "subject": "CN=Root",
+  "issuer": "CN=Root",
+  "san": [],
+  "key_algorithm": "EC",
+  "key_size": 256,
+  "key_curve": "P-256",
+  "signature_algorithm": "ecdsa-with-SHA256",
+  "not_before": "2024-01-01T00:00:00Z",
+  "not_after": "2034-01-01T00:00:00Z",
+  "is_ca": true,
+  "sightings_total": 2,
+  "runs_total": 2,
+  "runs_truncated": false,
+  "runs": [
+   {
+    "run_id": "a5d5fe244d554ac4983df9ef554b4e86",
+    "run_number": 3,
+    "sightings": 1,
+    "paths_count": 1,
+    "paths": [
+     "C:\\certs-root\\certs\\store\\dup.pfx"
+    ],
+    "paths_truncated": false
+   },
+   {
+    "run_id": "4ea1a9d77d61459c90cfe2034623dbc4",
+    "run_number": 1,
+    "sightings": 1,
+    "paths_count": 1,
+    "paths": [
+     "C:\\certs-root\\certs\\store\\dup.pfx"
+    ],
+    "paths_truncated": false
+   }
+  ]
+ },
+ "detail_sha256": "4a8f8cb13f9f74c895f3320e741d708178813fa23175148cfec46a0978786c0f",
+ "list": [
+  {
+   "run_id": "a5d5fe244d554ac4983df9ef554b4e86",
+   "run_number": 3,
+   "type": "filesystem",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "partial",
+   "config": {
+    "roots": [
+     "C:\\certs-root\\certs",
+     "C:\\certs-root\\missing-too"
+    ]
+   },
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "completed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 8,
+   "finding_count": 6,
+   "rejected_count": 0,
+   "error_count": 1,
+   "error_summary": "roots_not_scanned:1, file_errors:1",
+   "agent_summary": null
+  },
+  {
+   "run_id": "377e73a7ce7f459886647c166327a2e5",
+   "run_number": 2,
+   "type": "filesystem",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "failed",
+   "config": {
+    "roots": [
+     "C:\\certs-root\\does-not-exist"
+    ]
+   },
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "completed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 0,
+   "finding_count": 0,
+   "rejected_count": 0,
+   "error_count": 1,
+   "error_summary": "no_usable_data, roots_not_scanned:1, file_errors:1",
+   "agent_summary": null
+  },
+  {
+   "run_id": "4ea1a9d77d61459c90cfe2034623dbc4",
+   "run_number": 1,
+   "type": "filesystem",
+   "trigger": "manual",
+   "schedule_id": null,
+   "status": "completed",
+   "config": {
+    "roots": [
+     "C:\\certs-root\\certs"
+    ]
+   },
+   "host_id": "agent-test",
+   "queued_at": "2026-03-01T12:00:00.000Z",
+   "started_at": "2026-03-01T12:00:00.000Z",
+   "finished_at": "2026-03-01T12:00:00.000Z",
+   "last_heartbeat_at": "2026-03-01T12:00:00.000Z",
+   "duration_ms": 0,
+   "stop_reason": "completed",
+   "cancel_requested": false,
+   "cancel_requested_at": null,
+   "record_count": 8,
+   "finding_count": 6,
+   "rejected_count": 0,
+   "error_count": 0,
+   "error_summary": null,
+   "agent_summary": null
+  }
+ ]
+}
