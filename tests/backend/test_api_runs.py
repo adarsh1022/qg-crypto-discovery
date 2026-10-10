@@ -49,8 +49,8 @@ def test_a_client_cannot_choose_the_run_id_or_status(api):
 
 
 def test_a_tls_run_can_be_queued(api):
-    run = api.create("tls", config={"duration_seconds": 30})
-    assert run["type"] == "tls" and run["status"] == "queued" and run["config"] == {"duration_seconds": 30}
+    run = api.create("tls", config={"time_budget_seconds": 30})
+    assert run["type"] == "tls" and run["status"] == "queued" and run["config"] == {"time_budget_seconds": 30}
 
 
 def test_scheduled_runs_need_an_existing_schedule(api):
@@ -183,10 +183,10 @@ def test_error_bodies_never_contain_internals(api):
 # =========================================================================== size limit
 def test_an_oversized_declared_body_is_refused(tmp_path):
     api = make_api(tmp_path, max_body_bytes=2000)
-    response = api.client.post("/api/runs", json={"type": "tls", "config": {"note": "x" * 5000}})
+    response = api.client.post("/api/runs", json={"type": "filesystem", "config": {"roots": ["C:\\" + "x" * 5000]}})
     assert response.status_code == 413 and error_of(response)["code"] == "payload_too_large"
     assert error_of(response)["details"] == {"max_bytes": 2000} and api.client.get("/api/runs").json()["runs"] == []
-    assert api.client.post("/api/runs", json={"type": "tls", "config": {"note": "x" * 100}}).status_code == 201
+    assert api.client.post("/api/runs", json={"type": "filesystem", "config": {"roots": ["C:\\" + "x" * 100]}}).status_code == 201
 
 
 def asgi_post(app, path, chunks, headers=()):
@@ -213,7 +213,7 @@ def asgi_post(app, path, chunks, headers=()):
 
 def test_a_streamed_body_over_the_limit_is_refused_without_content_length(tmp_path):
     api = make_api(tmp_path, max_body_bytes=2000)
-    payload = json.dumps({"type": "tls", "config": {"note": "y" * 5000}}).encode()
+    payload = json.dumps({"type": "filesystem", "config": {"roots": ["C:\\" + "y" * 5000]}}).encode()
     status, body = asgi_post(api.app, "/api/runs", [payload[:1500], payload[1500:3000], payload[3000:]])
     assert status == 413 and body["error"]["code"] == "payload_too_large"
     small = json.dumps({"type": "tls"}).encode()

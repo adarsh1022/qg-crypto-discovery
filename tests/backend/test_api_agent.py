@@ -102,11 +102,12 @@ def test_claiming_an_unknown_run(api):
     assert response.status_code == 404 and error_of(response)["code"] == "run_not_found"
 
 
-def test_a_tls_run_is_not_handed_out_yet(api):
+def test_a_tls_run_is_handed_out_like_any_other_run(api):
+    # Changed with TLS scanning (M3): this test used to assert that a TLS run could not be claimed (unsupported_run_type).
     run = api.create("tls")
     response = api.agent().claim(run["run_id"])
-    assert response.status_code == 409 and error_of(response)["code"] == "unsupported_run_type"
-    assert api.get(run["run_id"])["status"] == "queued" and count(api, "hosts") == 0
+    assert response.status_code == 200 and response.json()["run"]["type"] == "tls"
+    assert api.get(run["run_id"])["status"] == "running" and count(api, "hosts") == 1
 
 
 @pytest.mark.parametrize("body", [{}, {"hostname": "H"}, {"agent_id": "a"}, {"agent_id": "bad id!", "hostname": "H"},

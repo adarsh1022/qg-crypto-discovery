@@ -23,7 +23,7 @@ from typing import Any, Callable
 
 import sqlite3
 
-from . import db, errors, fs_ingest, run_state as rs, runs
+from . import db, errors, fs_ingest, run_state as rs, runs, tls_ingest
 from .errors import ApiError
 from .settings import Settings
 
@@ -32,6 +32,14 @@ FS_POSITIVE_INT_KEYS = ("max_file_bytes", "max_entries", "max_candidates", "max_
 FS_NONNEGATIVE_INT_KEYS = ("max_depth", "expiring_days")
 FS_NUMBER_KEYS = ("time_budget_seconds",)
 FS_CONFIG_KEYS = frozenset(FS_LIST_KEYS + FS_POSITIVE_INT_KEYS + FS_NONNEGATIVE_INT_KEYS + FS_NUMBER_KEYS)
+# TLS runs probe the TLS services listening on THIS machine. The configuration can only tune limits and NARROW the listeners
+# the agent finds (a port list); it can never name a target. The agent's TlsScanConfig is the semantic source of truth.
+TLS_CONFIG_KEYS = frozenset({"max_targets", "connect_timeout_seconds", "handshake_timeout_seconds", "time_budget_seconds", "ports"})
+TLS_TIMEOUT_MAX = 30
+TLS_BUDGET_MAX = 3600
+TLS_MAX_TARGETS = 1024
+TLS_MAX_PORTS = 256
+RUN_TYPES_WITH_AGENT = ("filesystem", "tls")           # the run types an agent can claim
 RUN_VIEW_FIELDS = ("run_id", "run_number", "type", "trigger", "schedule_id", "status", "config", "host_id", "queued_at",
                    "started_at", "finished_at", "last_heartbeat_at", "duration_ms", "stop_reason", "cancel_requested",
                    "cancel_requested_at", "record_count", "finding_count", "rejected_count", "error_count", "error_summary",
@@ -93,7 +101,18 @@ def _apply_expiry(conn: sqlite3.Connection, ctx: Context, run_id: str, now: dt.d
     if verdict.kind == rs.QUEUE_TIMEOUT:
         return runs.fail_run_in_tx(conn, run_id, now=now, code="agent_not_connected")
     outcome = "cancelled" if verdict.kind == rs.CANCELLED else "lost"
-    return fs_ingest.finalize_fs_run_in_tx(conn, run_id, now=now, outcome=outcome, agent_lost=verdict.agent_lost)
+    return _finalize_in_tx(conn, run_id, now=now, outcome=outcome, agent_lost=verdict.agent_lost)
+
+
+def _run_type(conn: sqlite3.Connection, run_id: str) -> str:
+    return conn.execute("SELECT type FROM runs WHERE run_id = ?", (run_id,)).fetchone()[0]
+
+
+def _finalize_in_tx(conn: sqlite3.Connection, run_id: str, **kwargs) -> rs.RunState:
+    """End a running run through the finalizer of ITS type. Filesystem runs make exactly the call they always did."""
+    if _run_type(conn, run_id) == "tls":
+        return tls_ingest.finalize_tls_run_in_tx(conn, run_id, **kwargs)
+    return fs_ingest.finalize_fs_run_in_tx(conn, run_id, **kwargs)
 
 
 def _view(conn: sqlite3.Connection, run_id: str) -> dict:
@@ -132,7 +151,31 @@ def validate_run_config(run_type: str, config: dict) -> dict:
                       and 0 < value <= MAX_INT)
             if not ok:
                 raise errors.invalid_config({"field": key, "problem": "wrong_type_or_range"})
+    elif run_type == "tls":
+        _validate_tls_config(config)
     return config
+
+
+def _validate_tls_config(config: dict) -> None:
+    """Shape-only validation of a TLS run's configuration (the agent's TlsScanConfig has the final say).
+
+    Only the five keys the agent understands are accepted; any other key is refused HERE, at creation, so a run with an
+    unknown setting never exists and no agent can claim or probe it. The configuration can tune limits and narrow the
+    listeners the agent finds (a port list); it can never name a target.
+    """
+    if any(key not in TLS_CONFIG_KEYS for key in config):
+        raise errors.invalid_config({"problem": "unknown_key", "allowed_keys": sorted(TLS_CONFIG_KEYS)})
+    for key, value in config.items():
+        if key == "max_targets":
+            ok = isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= TLS_MAX_TARGETS
+        elif key == "ports":
+            ok = (isinstance(value, list) and 1 <= len(value) <= TLS_MAX_PORTS
+                  and all(isinstance(p, int) and not isinstance(p, bool) and 1 <= p <= 65535 for p in value))
+        else:
+            ceiling = TLS_BUDGET_MAX if key == "time_budget_seconds" else TLS_TIMEOUT_MAX
+            ok = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 < value <= ceiling
+        if not ok:
+            raise errors.invalid_config({"field": key, "problem": "wrong_type_or_range"})
 
 
 def create_run(conn: sqlite3.Connection, ctx: Context, now: dt.datetime, *, run_type: str, trigger: str,
@@ -174,8 +217,8 @@ def claim_run(conn: sqlite3.Connection, ctx: Context, now: dt.datetime, run_id: 
         state = _apply_expiry(conn, ctx, run_id, now)                     # RunNotFound -> 404; a stale queued run fails here
         if state.status != rs.QUEUED:
             return errors.run_not_claimable(_view(conn, run_id))
-        run_type = conn.execute("SELECT type FROM runs WHERE run_id = ?", (run_id,)).fetchone()[0]
-        if run_type != "filesystem":
+        run_type = _run_type(conn, run_id)
+        if run_type not in RUN_TYPES_WITH_AGENT:
             return errors.unsupported_run_type(run_type)
         runs.register_host_in_tx(conn, agent_id, hostname, os_name=os_name, agent_version=agent_version, now=now)
         runs.start_run_in_tx(conn, run_id, now=now, lease_hash=token_hash, host_id=agent_id)
@@ -216,7 +259,8 @@ def ingest_observations(conn: sqlite3.Connection, ctx: Context, now: dt.datetime
         if rs.lease_state(state, now, ctx.settings.timeouts, ctx.not_before) != rs.FRESH:
             return errors.lease_overdue(_view(conn, run_id))
         try:
-            batch = fs_ingest.ingest_fs_batch_in_tx(conn, run_id, items, now=now)     # idempotent; conflicts recorded
+            ingest = tls_ingest.ingest_tls_batch_in_tx if _run_type(conn, run_id) == "tls" else fs_ingest.ingest_fs_batch_in_tx
+            batch = ingest(conn, run_id, items, now=now)                              # idempotent; conflicts recorded
         except fs_ingest.BatchRejected:
             return errors.bad_batch_item()                                            # nothing was written
         current = runs.load_state(conn, run_id)
@@ -236,7 +280,7 @@ def finish_run(conn: sqlite3.Connection, ctx: Context, now: dt.datetime, run_id:
             view = _view(conn, run_id)
             return errors.run_already_finished(api_view(view)) if state.status in rs.TERMINAL else errors.run_not_running(view)
         # fresh and overdue both qualify: the overdue window exists precisely so a healthy agent can still finish
-        fs_ingest.finalize_fs_run_in_tx(conn, run_id, now=now, outcome=outcome, summary=summary, fatal_code=fatal_code)
+        _finalize_in_tx(conn, run_id, now=now, outcome=outcome, summary=summary, fatal_code=fatal_code)
         return _view(conn, run_id)
     return _transact(conn, work)
 

@@ -449,5 +449,5 @@ def test_the_write_paths_still_answer_as_before(api):
     run = api.create("tls")
     agent = api.agent()
     claimed = agent.claim(run["run_id"])
-    assert claimed.status_code == 409 and error_of(claimed)["code"] == "unsupported_run_type"          # unchanged by the report errors
+    assert claimed.status_code == 200 and claimed.json()["run"]["status"] == "running"       # a TLS run is claimable since M3; the report errors do not touch this
     assert api.client.get(f"/api/runs/{run['run_id']}").status_code == 200
