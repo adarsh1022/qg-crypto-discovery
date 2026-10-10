@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import api_models as models
-from . import db, errors, fs_ingest, report_routes, run_state as rs, runs, service
+from . import db, errors, fs_ingest, report_routes, run_state as rs, runs, service, tls_report_routes
 from .errors import ApiError
 from .safety import sanitize_text
 from .settings import Settings
@@ -326,6 +326,7 @@ def create_app(settings: Settings, *, clock: Callable[[], dt.datetime] = utc_now
     app.state.ctx = service.Context(settings=settings, not_before=clock())
     _install_handlers(app)
     app.include_router(report_routes.router)            # first: /api/runs/stats must not be read as /api/runs/{run_id}
+    app.include_router(tls_report_routes.router)
     app.include_router(router)
     app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_body_bytes)
     app.add_middleware(LocalOnlyMiddleware, allowed_hosts=settings.allowed_hosts, allowed_origins=settings.allowed_origins)

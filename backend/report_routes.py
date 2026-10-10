@@ -122,9 +122,10 @@ def parse_query(request: Request, spec: dict[str, str]) -> dict[str, Any]:
 
 # ------------------------------------------------------------------ one read request
 def serve(request: Request, work: Callable[[sqlite3.Connection, db.QueryBudget, Any], Any],
-          prepare: Callable[[], Any] = lambda: None) -> Any:
+          prepare: Callable[[], Any] = lambda: None, required_type: str = "filesystem") -> Any:
     """Run `work` on a read-only connection inside one snapshot under one budget, translating failures.
 
+    `required_type` is the run type the report is for; it only decides what a wrong-type 409 says (default: filesystem).
     `prepare` (validation that needs no database) runs first. The budget starts when the request arrives and covers the
     connection, the snapshot, every statement and the Python work in between. The connection is opened and closed in
     this thread, whatever happens.
@@ -149,7 +150,7 @@ def serve(request: Request, work: Callable[[sqlite3.Connection, db.QueryBudget, 
     except runs.RunNotFound:
         raise _nostore(errors.run_not_found()) from None
     except runs.WrongRunType:
-        raise _nostore(errors.wrong_run_type("filesystem")) from None
+        raise _nostore(errors.wrong_run_type(required_type)) from None
     except sqlite3.Error as exc:
         log.error("database error: %s", type(exc).__name__)                    # the class only: messages can quote data
         raise _nostore(errors.from_database_error(exc)) from None
