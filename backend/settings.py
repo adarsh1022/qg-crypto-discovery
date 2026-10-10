@@ -19,6 +19,7 @@ class Settings:
     max_batch_items: int = 500
     max_body_bytes: int = 2 * 1024 * 1024
     sweep_interval_s: float | None = 15.0               # background expiry of stale runs; None disables the task
+    schedule_tick_s: float | None = 5.0                 # how often due schedules are looked at; None disables the scheduler
     allowed_hosts: tuple[str, ...] = DEFAULT_ALLOWED_HOSTS
     allowed_origins: tuple[str, ...] = ()               # extra browser origins (e.g. a UI dev server) beyond loopback
     query_budget_s: float = 5.0                         # time one report request may spend (SQL and Python together)
@@ -43,6 +44,10 @@ class Settings:
                                                   not isinstance(self.sweep_interval_s, (int, float)) or
                                                   not 0 < self.sweep_interval_s < float("inf")):
             raise ValueError("sweep_interval_s must be a positive finite number or None")
+        if self.schedule_tick_s is not None and (isinstance(self.schedule_tick_s, bool) or
+                                                 not isinstance(self.schedule_tick_s, (int, float)) or
+                                                 not 0 < self.schedule_tick_s < float("inf")):
+            raise ValueError("schedule_tick_s must be a positive finite number or None")
         if not self.allowed_hosts or not all(isinstance(h, str) and h for h in self.allowed_hosts):
             raise ValueError("allowed_hosts must be a non-empty tuple of host names")
         object.__setattr__(self, "allowed_hosts", tuple(h.lower() for h in self.allowed_hosts))

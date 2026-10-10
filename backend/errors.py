@@ -56,8 +56,13 @@ def bad_batch_item() -> ApiError:
     return ApiError(422, "bad_batch_item", "Every batch item must be a [seq, record] pair with a non-negative integer seq.")
 
 
-def unknown_schedule() -> ApiError:
-    return ApiError(422, "unknown_schedule", "A scheduled run needs an existing schedule_id; a manual run must not have one.")
+def scheduled_runs_reserved() -> ApiError:
+    return ApiError(422, "scheduled_runs_reserved",
+                    "Only the scheduler creates scheduled runs; this endpoint creates manual runs and takes no schedule_id.")
+
+
+def invalid_schedule(details: dict | None = None) -> ApiError:
+    return ApiError(422, "invalid_schedule", "The schedule is not acceptable.", details)
 
 
 # ---- 403 / 404
@@ -79,6 +84,10 @@ def run_not_found() -> ApiError:
 
 def certificate_not_found() -> ApiError:
     return ApiError(404, "certificate_not_found", "No such certificate.")
+
+
+def schedule_not_found() -> ApiError:
+    return ApiError(404, "schedule_not_found", "No such schedule.")
 
 
 # ---- 409
@@ -110,6 +119,10 @@ def run_not_cancellable(run: dict) -> ApiError:
 
 def wrong_run_type(required: str) -> ApiError:
     return ApiError(409, "wrong_run_type", "This report is not available for this type of run.", {"required_type": required})
+
+
+def too_many_schedules(limit: int) -> ApiError:
+    return ApiError(409, "too_many_schedules", "The maximum number of schedules has been reached.", {"max_schedules": limit})
 
 
 # ---- 5xx

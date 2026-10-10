@@ -25,7 +25,8 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import api_models as models
-from . import db, errors, fs_ingest, report_routes, run_state as rs, runs, service, tls_report_routes
+from . import db, errors, fs_ingest, report_routes, run_state as rs, runs, schedules, service, tls_report_routes
+from . import schedule_models as sched_models
 from .errors import ApiError
 from .safety import sanitize_text
 from .settings import Settings
@@ -231,6 +232,36 @@ def finish_run(run_id: str, body: models.FinishRequest, token=Depends(run_token)
     return {"run": models.run_view(run)}
 
 
+# ------------------------------------------------------------------ schedules (thin; the rules live in schedules.py)
+schedule_router = APIRouter(prefix="/api/schedules")
+
+
+@schedule_router.post("", status_code=201, response_model=sched_models.ScheduleEnvelope)
+def create_schedule(body: sched_models.ScheduleCreate, now=Depends(get_now), database=Depends(get_database)):
+    with database.connection() as conn:
+        view = schedules.create_schedule(conn, now, run_type=body.run_type, interval_seconds=body.interval_seconds,
+                                         config=body.config, enabled=body.enabled, probe_all_listeners=body.probe_all_listeners)
+    return {"schedule": view}
+
+
+@schedule_router.get("", response_model=sched_models.ScheduleListEnvelope)
+def list_schedules(database=Depends(get_database)):
+    with database.connection() as conn:
+        return {"schedules": schedules.list_schedules(conn)}
+
+
+@schedule_router.get("/{schedule_id}", response_model=sched_models.ScheduleEnvelope)
+def get_schedule(schedule_id: str, database=Depends(get_database)):
+    with database.connection() as conn:
+        return {"schedule": schedules.get_schedule(conn, schedule_id)}
+
+
+@schedule_router.patch("/{schedule_id}", response_model=sched_models.ScheduleEnvelope)
+def set_schedule_enabled(schedule_id: str, body: sched_models.SchedulePatch, now=Depends(get_now), database=Depends(get_database)):
+    with database.connection() as conn:
+        return {"schedule": schedules.set_enabled(conn, now, schedule_id, body.enabled)}
+
+
 # ------------------------------------------------------------------ error handlers
 def _json(error: ApiError) -> JSONResponse:
     return JSONResponse(status_code=error.status, content=error.body(), headers=error.headers or None)
@@ -303,6 +334,24 @@ async def _sweep_loop(app: FastAPI, interval: float) -> None:
             log.error("sweep failed: %s", type(exc).__name__)
 
 
+# ------------------------------------------------------------------ scheduler task
+def tick_once(app: FastAPI) -> schedules.TickResult:
+    conn = db.connect(app.state.settings.db_path)
+    try:
+        return schedules.tick(conn, app.state.ctx, app.state.clock())
+    finally:
+        conn.close()
+
+
+async def _schedule_loop(app: FastAPI, interval: float) -> None:
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await asyncio.to_thread(tick_once, app)                          # SQLite work stays off the event loop
+        except Exception as exc:                                              # noqa: BLE001 - keep scheduling
+            log.error("schedule tick failed: %s", type(exc).__name__)
+
+
 # ------------------------------------------------------------------ factory
 def create_app(settings: Settings, *, clock: Callable[[], dt.datetime] = utc_now,
                budget_clock: Callable[[], float] = time.monotonic) -> FastAPI:
@@ -311,23 +360,34 @@ def create_app(settings: Settings, *, clock: Callable[[], dt.datetime] = utc_now
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
         task = asyncio.create_task(_sweep_loop(app, settings.sweep_interval_s)) if settings.sweep_interval_s else None
+        # one scheduler loop per application: a lifespan entered again while one is still running does not start a second
+        running = getattr(app.state, "scheduler_task", None)
+        starts = settings.schedule_tick_s is not None and (running is None or running.done())
+        scheduler = asyncio.create_task(_schedule_loop(app, settings.schedule_tick_s)) if starts else None
+        if scheduler is not None:
+            app.state.scheduler_task = scheduler
         try:
             yield
         finally:
-            if task is not None:
-                task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
+            for stopping in (task, scheduler):
+                if stopping is not None:
+                    stopping.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await stopping
+            if scheduler is not None and getattr(app.state, "scheduler_task", None) is scheduler:
+                app.state.scheduler_task = None
 
     app = FastAPI(title="QuantumGenie local backend", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.clock = clock
     app.state.budget_clock = budget_clock                 # the report time budget runs on its own (monotonic) clock
     app.state.ctx = service.Context(settings=settings, not_before=clock())
+    app.state.scheduler_task = None
     _install_handlers(app)
     app.include_router(report_routes.router)            # first: /api/runs/stats must not be read as /api/runs/{run_id}
     app.include_router(tls_report_routes.router)
     app.include_router(router)
+    app.include_router(schedule_router)
     app.add_middleware(BodyLimitMiddleware, max_bytes=settings.max_body_bytes)
     app.add_middleware(LocalOnlyMiddleware, allowed_hosts=settings.allowed_hosts, allowed_origins=settings.allowed_origins)
     return app

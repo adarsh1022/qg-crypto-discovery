@@ -53,15 +53,27 @@ def test_a_tls_run_can_be_queued(api):
     assert run["type"] == "tls" and run["status"] == "queued" and run["config"] == {"time_budget_seconds": 30}
 
 
-def test_scheduled_runs_need_an_existing_schedule(api):
-    for body in ({"trigger": "scheduled"}, {"trigger": "scheduled", "schedule_id": "nope"}, {"schedule_id": "s1"}):
-        response = api.client.post("/api/runs", json={"type": "filesystem", **body})
-        assert response.status_code == 422 and error_of(response)["code"] == "unknown_schedule", body
+@pytest.mark.parametrize("config", [{"roots": ["-----BEGIN CERTIFICATE-----"]}, {"exclude_paths": ["C:\\x\n-----BEGIN PRIVATE KEY-----"]}])
+def test_raw_material_cannot_be_smuggled_into_a_filesystem_run_config_either(api, config):
+    response = api.client.post("/api/runs", json={"type": "filesystem", "config": config})
+    assert response.status_code == 422 and error_of(response)["code"] == "invalid_config"
+    assert "BEGIN" not in response.text and api.client.get("/api/runs").json()["runs"] == []
+
+
+def test_ordinary_callers_cannot_label_a_run_as_scheduled_or_attach_a_schedule(api):
+    # Changed with scheduling (Phase 2): this test used to show that POST /api/runs could create a 'scheduled' run for any
+    # existing schedule id. That let any caller forge scheduler provenance, so only the scheduler (backend/schedules.py,
+    # through runs.create_run_in_tx) may create them now. Even an existing schedule id is refused here.
     with api.connect() as conn:
         conn.execute("INSERT INTO schedules (schedule_id, run_type, interval_seconds, created_at) VALUES ('s1', 'filesystem', 3600, 'x')")
-    run = api.create(trigger="scheduled", schedule_id="s1")
-    assert run["trigger"] == "scheduled" and run["schedule_id"] == "s1"
-    assert api.client.get("/api/runs").json()["runs"][0]["trigger"] == "scheduled"
+    for body in ({"trigger": "scheduled"}, {"trigger": "scheduled", "schedule_id": "nope"},
+                 {"trigger": "scheduled", "schedule_id": "s1"}, {"schedule_id": "s1"}, {"trigger": "manual", "schedule_id": "s1"}):
+        response = api.client.post("/api/runs", json={"type": "filesystem", **body})
+        assert response.status_code == 422 and error_of(response)["code"] == "scheduled_runs_reserved", body
+        assert "s1" not in response.text and "nope" not in response.text                    # nothing the caller sent is echoed back
+    assert api.client.get("/api/runs").json()["runs"] == []                                 # and no run was created
+    run = api.create(trigger="manual")                                                      # an explicit manual trigger is fine
+    assert run["trigger"] == "manual" and run["schedule_id"] is None
 
 
 def test_the_whole_request_is_persisted_immutably(api):
@@ -108,7 +120,7 @@ def test_raw_material_cannot_be_smuggled_into_a_run_config(api, config):
                                   {"type": "filesystem", "schedule_id": "bad id!"}, {"type": "filesystem", "extra": 1}])
 def test_malformed_create_requests_are_validation_errors(api, body):
     response = api.client.post("/api/runs", json=body)
-    assert response.status_code == 422 and error_of(response)["code"] in ("validation_failed", "unknown_schedule")
+    assert response.status_code == 422 and error_of(response)["code"] == "validation_failed"   # every one of these fails the model first
 
 
 def test_create_never_exposes_a_lease(api):

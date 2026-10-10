@@ -180,6 +180,10 @@ def _validate_tls_config(config: dict) -> None:
 
 def create_run(conn: sqlite3.Connection, ctx: Context, now: dt.datetime, *, run_type: str, trigger: str,
                schedule_id: str | None, config: dict) -> dict:
+    """The public way to start a run: always a MANUAL run. A caller cannot label a run 'scheduled' or attach a schedule to it;
+    scheduled runs are created only by the scheduler (backend/schedules.py), which has its own trusted path."""
+    if trigger != "manual" or schedule_id is not None:
+        raise errors.scheduled_runs_reserved()
     config = validate_run_config(run_type, config)
     try:
         runs.clean_json_object(config)                          # forbidden keys, PEM armor, size, depth
@@ -187,11 +191,7 @@ def create_run(conn: sqlite3.Connection, ctx: Context, now: dt.datetime, *, run_
         raise errors.invalid_config({"problem": "rejected_content"}) from None
 
     def work():
-        if (trigger == "scheduled") != (schedule_id is not None):
-            return errors.unknown_schedule()
-        if schedule_id is not None and conn.execute("SELECT 1 FROM schedules WHERE schedule_id = ?", (schedule_id,)).fetchone() is None:
-            return errors.unknown_schedule()
-        run_id = runs.create_run_in_tx(conn, run_type, trigger, now=now, config=config, schedule_id=schedule_id)
+        run_id = runs.create_run_in_tx(conn, run_type, "manual", now=now, config=config)
         return _view(conn, run_id)
     return _transact(conn, work)
 

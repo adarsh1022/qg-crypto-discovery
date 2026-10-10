@@ -68,6 +68,7 @@ class Api:
 def make_api(tmp_path: Path, *, clock: FakeClock | None = None, name="api.db", budget_clock=None, **settings_kwargs) -> Api:
     clock = clock or FakeClock()
     settings_kwargs.setdefault("sweep_interval_s", None)             # tests drive expiry explicitly
+    settings_kwargs.setdefault("schedule_tick_s", None)              # ... and the scheduler (schedules.tick) explicitly
     settings = Settings(db_path=tmp_path / name, **settings_kwargs)
     app = create_app(settings, clock=clock, **({"budget_clock": budget_clock} if budget_clock else {}))
     return Api(app=app, client=TestClient(app, base_url=BASE_URL), clock=clock, settings=settings, db_path=settings.db_path)
