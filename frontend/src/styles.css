@@ -34,7 +34,9 @@ h2 { font-size: 1.1rem; margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .app-header { display: flex; align-items: center; gap: 1.5rem; padding: 0.75rem 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.app-header nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; }
 .app-header nav a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.app-header nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 0.35rem; text-decoration-thickness: 2px; }
 main { max-width: 1280px; margin: 0 auto; padding: 1rem 16px 3rem; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin: 1rem 0; max-width: 720px; }
@@ -160,3 +162,34 @@ details.new-scan > .card { margin-top: 0.5rem; }
 .badge-schedule-paused, .badge-schedule-unknown { background: var(--neutral-bg); color: var(--neutral-fg); }
 .inline-fields { display: flex; gap: 0.5rem; align-items: center; max-width: 20rem; }
 .inline-fields input { flex: 1 1 6rem; min-width: 0; }
+
+/* ---- dashboard charts: plain HTML bars. Colours are the validated categorical slots 1-2 and the fixed status colours; every
+   status colour is paired with an icon and a text label, and every bar with its number, so colour never carries meaning alone. */
+.chart { --series-1: #2a78d6; --series-2: #eb6834; --st-valid: #0ca30c; --st-expiring: #fab219; --st-expired: #d03b3b; --st-neutral: #8b94a3; margin: 0.75rem 0; }
+@media (prefers-color-scheme: dark) { .chart { --series-1: #3987e5; --series-2: #d95926; --st-neutral: #6f7a8a; } }
+.chart figcaption h3 { font-size: 1rem; margin: 0; }
+.chart figcaption p { margin: 0.1rem 0 0; }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 0.5rem 2rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; list-style: none; padding: 0; margin: 0.4rem 0 0; color: var(--muted); font-size: 0.9em; }
+.swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; vertical-align: -0.05rem; }
+.bars { list-style: none; padding: 0; margin: 0.4rem 0 0; }
+.bar-row { display: grid; grid-template-columns: minmax(7rem, 12rem) minmax(4rem, 1fr) auto; align-items: center; gap: 0.5rem; padding: 0.2rem 0; }
+.bar-icon { display: inline-block; width: 1.1em; font-weight: 700; }
+.bar-track { display: flex; gap: 2px; height: 12px; min-width: 0; }
+.bar-seg { display: block; height: 100%; min-width: 2px; }
+.bar-seg:last-child { border-radius: 0 4px 4px 0; }
+.bar-value { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tone-series1 { background: var(--series-1); }
+.tone-series2 { background: var(--series-2); }
+.tone-valid { background: var(--st-valid); }
+.tone-expiring { background: var(--st-expiring); }
+.tone-expired { background: var(--st-expired); }
+.tone-neutral { background: var(--st-neutral); }
+.stats .stat { display: flex; flex-direction: column; }
+.stat-label { color: var(--muted); font-size: 0.85em; }
+.stat-value { font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.stat-note { font-size: 0.8em; }
+@media (max-width: 520px) {
+  .bar-row { grid-template-columns: 1fr auto; }
+  .bar-track { grid-column: 1 / -1; grid-row: 2; }
+}

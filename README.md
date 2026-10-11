@@ -22,11 +22,13 @@ Working end to end on Windows:
   [Scheduled scans](#scheduled-scans).
 - **Relationships**: when a run finishes, the certificates, hosts and probed local listeners its evidence supports are
   recorded and listed in a table on its report; see [Relationships](#relationships).
+- **Dashboard**: key figures and charts (runs by status and type, certificate validity, key and signature algorithms, TLS
+  versions and cipher suites); see [Dashboard](#dashboard).
 - Run lifecycle (queued, running, completed / partial / failed, cancel), a read-only report API for both scan types, and a
   browser UI with a runs list and one report page per run.
 
-**Not implemented yet** (see [Known limitations](#known-limitations)): a relationship graph, a dashboard page and charts, and
-some filesystem-report views.
+**Not implemented yet** (see [Known limitations](#known-limitations)): a relationship graph, charts of duration or findings
+over time, issuer and location charts, and some filesystem-report views.
 
 ## Requirements
 
@@ -159,6 +161,26 @@ $body = @{ run_type = "tls"; interval_seconds = 30; config = @{ ports = @(8443) 
 Invoke-RestMethod http://127.0.0.1:8765/api/schedules                       # list them
 Invoke-RestMethod -Method Patch -Uri http://127.0.0.1:8765/api/schedules/<schedule id> -ContentType "application/json" -Body '{"enabled": false}'   # pause
 ```
+
+## Dashboard
+
+The **Dashboard** link in the header (`#/dashboard`) shows key figures and charts. It reads existing read-only endpoints when
+the page opens and when you press **Refresh**; it does not poll.
+
+| Chart | Where the numbers come from |
+|---|---|
+| Runs by status and type | `GET /api/runs/stats` (`by_type_status`: every run, whatever its age) |
+| Certificate validity, key algorithms, signature algorithms | `GET /api/dashboard` (`summary` of the **latest finished filesystem run**) |
+| TLS versions, cipher suites | `GET /api/runs?type=tls&limit=100` to find the latest finished TLS run (completed or partial), then `GET /api/runs/{id}/tls/summary` (completed handshakes only) |
+
+- The certificate and TLS charts each describe **one run** and say which, with a link to its report. They do not describe all
+  runs. If that run found nothing, or did not complete cleanly, the chart says so; for example, a scheduled scan of an empty
+  folder that happens to be the latest finished filesystem run leaves the certificate charts empty until a scan that finds
+  certificates finishes after it.
+- The charts are plain HTML bars (no chart library). Every bar is a list item with its label and number in text, status colours
+  (valid, expiring, expired) always come with an icon and a text label, and the bars are scaled to the largest row of their own
+  chart.
+- Not charted: duration or findings over time, issuers, file locations, TLS certificate validity, and any relationship graph.
 
 ## Relationships
 
@@ -307,10 +329,12 @@ Not implemented:
 - **Relationship graph.** Relationships are shown as a table per run; there is no graph. A filesystem report lists only
   `stored_on` rows and a TLS report only `presented_certificate` rows (plus the separate filesystem evidence described
   above). Runs made before relationships were recorded are not backfilled and read "Not recorded for this run".
-- **Dashboard page and charts.** `GET /api/dashboard` and `GET /api/runs/stats` exist; the UI uses neither. Summary figures are
-  shown as numbers; there are no charts.
-- **Filesystem report views.** The report lists certificates and files and shows validity counts, but there are no views by
-  key algorithm, key size, issuer or location, although the summary endpoint returns those figures.
+- **More charts.** The [Dashboard](#dashboard) charts runs, validity, key and signature algorithms, TLS versions and cipher
+  suites. There are no charts of duration or findings over time, issuers or file locations, and the per-run reports show
+  those figures as numbers only.
+- **Filesystem report views.** The report lists certificates and files and shows validity counts, but it has no views by
+  key algorithm, key size, issuer or location, although the summary endpoint returns those figures (the dashboard charts the
+  algorithms for the latest finished filesystem run).
 - **Filesystem owning process.** Always empty.
 - **Serving the built UI.** Only the Vite dev server is used.
 

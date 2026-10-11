@@ -2,6 +2,7 @@
 // /api to the loopback backend, so the browser never needs CORS and never talks to another host.
 //
 // Hygiene: errors carry the HTTP status and the backend's fixed error code, never a response body, and nothing here logs.
+import type { Dashboard, RunStatistics } from "./dashboardTypes";
 import type { RelationshipPage } from "./relationshipTypes";
 import type { CertificateDetail, CertificateQuery, Issue, Page, Sighting, SightingQuery, Summary, UniqueCertificate } from "./reportTypes";
 import type { TlsObservation, TlsObservationQuery, TlsSummary } from "./tlsTypes";
@@ -221,6 +222,21 @@ export async function getCertificate(sha256: string, signal?: AbortSignal): Prom
   const data = await request("GET", `/api/certificates/${sha256}`, undefined, signal);
   if (typeof data.sha256 !== "string" || !Array.isArray(data.san)) throw new ApiError(200, "invalid_response");
   return data as unknown as CertificateDetail;
+}
+
+// ------------------------------------------------------------------ dashboard (read-only)
+export async function getRunStatistics(signal?: AbortSignal): Promise<RunStatistics> {
+  const data = await request("GET", "/api/runs/stats", undefined, signal);
+  if (!Array.isArray(data.by_type_status) || !Array.isArray(data.series)) throw new ApiError(200, "invalid_response");
+  return data as unknown as RunStatistics;
+}
+
+export async function getDashboard(signal?: AbortSignal): Promise<Dashboard> {
+  const data = await request("GET", "/api/dashboard", undefined, signal);
+  if (!isObject(data.runs_by_status) || !Array.isArray(data.recent_runs) || !("summary" in data) || !("latest_terminal_fs_run" in data)) {
+    throw new ApiError(200, "invalid_response");
+  }
+  return data as unknown as Dashboard;
 }
 
 // ------------------------------------------------------------------ relationships (read-only; both run types)

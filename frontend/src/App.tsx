@@ -1,17 +1,20 @@
 import { ErrorPanel } from "./components/ErrorPanel";
+import { DashboardPage } from "./pages/DashboardPage";
 import { ReportPage } from "./pages/ReportPage";
 import { RunsPage } from "./pages/RunsPage";
-import { runsHref, useRoute } from "./route";
+import { dashboardHref, runsHref, useRoute } from "./route";
 
 export function App() {
   const route = useRoute();
   const onRuns = route.name === "runs";
+  const onDashboard = route.name === "dashboard";
   return (
     <>
       <header className="app-header">
         <strong>Certificate discovery</strong>
         <nav aria-label="Main">
           <a href={runsHref} aria-current={onRuns ? "page" : undefined}>Discovery runs</a>
+          <a href={dashboardHref} aria-current={onDashboard ? "page" : undefined}>Dashboard</a>
         </nav>
       </header>
       {/* The list stays mounted while a report is open, so its filters, loaded pages and cancel state are still there when
@@ -19,6 +22,7 @@ export function App() {
       <div hidden={!onRuns}>
         <RunsPage active={onRuns} />
       </div>
+      {onDashboard && <DashboardPage />}
       {route.name === "report" && <ReportPage key={route.runId} runId={route.runId} />}
       {route.name === "invalid" && (
         <main>

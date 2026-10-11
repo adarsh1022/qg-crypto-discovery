@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { parseHash, reportHref, runsHref } from "./route";
+import { dashboardHref, parseHash, reportHref, runsHref } from "./route";
 
 const ID = "0123456789abcdef0123456789abcdef";
 
 describe("parseHash", () => {
   it.each([[""], ["#"], ["#/"], ["#/runs"], ["#/runs/"], ["#runs"]])("%j is the runs list", (hash) => {
     expect(parseHash(hash)).toEqual({ name: "runs" });
+  });
+
+  it.each([["#/dashboard"], ["#/dashboard/"], ["#dashboard"]])("%j is the dashboard", (hash) => {
+    expect(parseHash(hash)).toEqual({ name: "dashboard" });
+    expect(parseHash(dashboardHref)).toEqual({ name: "dashboard" });
+  });
+
+  it.each([["#/dashboard/x"], ["#/Dashboard"], ["#/dashboard?x=1"]])("%j is not the dashboard", (hash) => {
+    expect(parseHash(hash)).toEqual({ name: "invalid" });
   });
 
   it("recognises a run's report", () => {
