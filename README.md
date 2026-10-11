@@ -105,7 +105,8 @@ Notes:
 |---|---|---|
 | Agent | `agent/` (Python standard library only) | Polls the backend for queued runs, claims one, scans, uploads records in batches, finishes the run. `python -m agent`. |
 | Backend | `backend/` (FastAPI + SQLite) | Creates and tracks runs, runs the scheduler, validates and stores what the agent sends, serves the report API. `python -m backend`. |
-| Browser UI | `frontend/` (React + TypeScript + Vite) | Runs list, "New scan" panel (filesystem and TLS metadata scans), "Scheduled scans" panel, filesystem report, TLS report. |
+| Browser UI | `frontend/` (React + TypeScript + Vite) | Runs list, "New scan" panel (filesystem and TLS metadata scans), "Scheduled scans" panel, filesystem report, TLS report (both with a relationships table), dashboard. |
+| Tools | `tools/` (Python standard library; the demo certificates need `cryptography`) | `build_agent_pyz.py` builds the agent package; `make_demo_certs.py` writes synthetic certificate files to scan in a demo. |
 | Tests | `tests/`, `frontend/src/**/*.test.*` | See [Testing](#testing). |
 
 How a run works: the UI (or any HTTP client) calls `POST /api/runs`; the run is *queued*. The agent finds it with
@@ -122,8 +123,66 @@ HTTP API summary (all JSON, under `/api`):
 - Filesystem report: `GET /runs/{id}/fs/summary`, `/fs/observations`, `/fs/certificates`, `/runs/{id}/issues`,
   `GET /certificates/{sha256}`.
 - TLS report: `GET /runs/{id}/tls/summary`, `/tls/observations`, `/tls/issues`.
+- Relationships (both run types): `GET /runs/{id}/relationships`.
 - Other: `GET /meta`, `GET /dashboard`, `GET /runs/stats`.
 - A report endpoint of the wrong type for a run answers `409 wrong_run_type`.
+
+## Third-party dependencies
+
+The agent has **no third-party dependency**: it uses only the Python standard library (a test checks this). SQLite comes from the
+standard library as well. Versions below are the ones installed when this section was written; the Python ranges are in
+`requirements-backend.txt` and `requirements-dev.txt` (not pinned), and the UI packages are pinned exactly in
+`frontend/package.json` and `frontend/package-lock.json` (lockfile version 3, 199 packages including transitive ones).
+
+**Backend, `requirements-backend.txt`**
+
+| Package | Tested with | Why it is used |
+|---|---|---|
+| fastapi | 0.143.0 | HTTP API framework and request validation |
+| pydantic | 2.14.0 | installed by FastAPI; the response models that decide which fields may leave the service |
+| starlette | 1.7.0 | installed by FastAPI; the ASGI toolkit underneath it |
+| uvicorn | 0.54.0 | the server behind `python -m backend`, bound to `127.0.0.1` only |
+| httpx | 0.28.1 | listed with the backend packages but used only by tests (FastAPI's test client and loopback HTTP calls); the backend never calls out |
+
+**Python tests and tools, `requirements-dev.txt`**
+
+| Package | Tested with | Why it is used |
+|---|---|---|
+| pytest | 9.1.1 | test runner |
+| cryptography | 50.0.2 | generates test certificates, serves as an independent oracle for the hand-written X.509 parser, and builds the demo certificates in `tools/make_demo_certs.py`. Not used by the agent or the backend. |
+
+**Web UI, `frontend/package.json`**
+
+| Package | Version | Why it is used |
+|---|---|---|
+| react, react-dom | 18.3.1 | the user interface (runtime) |
+| vite, @vitejs/plugin-react | 6.4.4, 4.7.0 | development server and production build |
+| typescript | 5.9.3 | type checking |
+| vitest, jsdom | 4.1.11, 26.1.0 | test runner and simulated browser |
+| @testing-library/react, /dom, /user-event | 16.3.1, 10.4.2, 14.6.5 | component tests |
+| @types/node, @types/react, @types/react-dom | 20.19.43, 18.3.31, 18.3.7 | type definitions |
+
+There is no router, state-management, chart or CSS library: routing is a small hash router, the charts are plain HTML bars, and
+the styles are one CSS file. Scripted checks in a headless Chrome were used during development; Chrome is not a dependency.
+Windows PowerShell (part of Windows) is used by the agent to open PKCS#12 files. Tested with Python 3.11.4, Node 20.17.0 and npm 10.8.2.
+
+## AI tools used
+
+This project was built with an AI coding assistant, and that should be read as the main way it was developed, not an aside.
+
+- **Tool and models:** Claude Code (Anthropic's coding agent, used from the command line and the VS Code extension) with Claude
+  models. Every commit in this repository's history carries a `Co-Authored-By: Claude Sonnet 5.5` trailer (23 of 23 commits when
+  this section was written). The trailer records the model named at commit time; it cannot show which model wrote which line.
+- **What the assistant did:** planning and phasing, designing the data model and API rules, writing and refactoring the agent, the
+  backend and the web UI, writing the tests (including independent test oracles, mutation checks and scripted headless-browser
+  checks), generating the synthetic test data, and writing this documentation. A bundled Anthropic data-visualization guide, with its
+  palette-validation script, was used to choose and check the chart colours.
+- **What the author did:** supplied the assignment, set the scope, approved each phase and design decision, reviewed the
+  assistant's reports and test results, and decides what is submitted. Responsibility for the submitted work is the author's.
+- **At run time:** the application contains no AI or language-model calls. It sends nothing off the machine: the agent talks only to
+  the backend on loopback, and the browser only to the local development server and backend.
+- **What is not claimed:** AI-written code has not been independently audited. The automated tests, and the
+  limits listed under [Known limitations](#known-limitations) and [Testing](#testing), are the evidence of quality, not the use of AI.
 
 ## Scheduled scans
 
@@ -323,6 +382,38 @@ No sample data is shipped. The database records its origin (`agent` or `sample`)
 (`--data-origin`), and the backend refuses to open a database with a different origin than requested, so sample data and
 agent evidence cannot be mixed in one file. `GET /api/meta` reports the origin. The UI does not display it yet.
 
+## Demo script (about 5 minutes)
+
+Prepare before recording (this is not part of the five minutes). It uses a fresh database and synthetic certificates, so nothing
+real is shown:
+
+```powershell
+.venv\Scripts\python tools\make_demo_certs.py          # 7 certificate-only files in demo_certs\ (no private keys)
+.venv\Scripts\python -m backend --db .\demo.db         # terminal 1: a database just for the demo
+.venv\Scripts\python -m agent                          # terminal 2
+cd frontend; npm run dev                                # terminal 3
+```
+
+Start the throwaway TLS listener from [Creating a TLS run through the API](#creating-a-tls-run-through-the-api) in a fourth
+terminal and note its **TLS port**. Open <http://127.0.0.1:5173>.
+
+| Time | Show | Say |
+|---|---|---|
+| 0:00 | The three terminals, then the empty Discovery runs page | Local only: agent, backend on `127.0.0.1`, browser UI. Nothing leaves the machine. |
+| 0:25 | **New scan**, filesystem tab, folder `demo_certs`, **Run filesystem scan**; watch Queued, Running, Completed | A real scan of real files by the agent as the current user; no administrator rights. |
+| 1:00 | Open the report: summary, certificates (one stored twice), Files tab | Private keys are never copied or stored; a certificate seen in two files is one certificate with two sightings. |
+| 1:30 | The **Relationships** table on that report | A certificate was parsed from a file on this host. That shows the file exists, not that the certificate is in use. |
+| 2:00 | **TLS metadata scan** tab (read the scope text), enter the TLS port, **Run TLS metadata scan**, open its report | An active probe of this machine's own listeners, not traffic capture; direction and packet counts are unknown. |
+| 2:40 | TLS report: the completed handshake, then its **Relationships** row | A local listener presented this certificate. The process is shown only when unambiguous. The "same certificate in files" column is separate evidence and does not prove the listener uses that file. |
+| 3:10 | **Dashboard** | Runs by status and type, validity (valid, expiring, expired), key and signature algorithms, TLS versions and cipher suites. Each chart says which run it describes. |
+| 3:50 | **Scheduled scans**: new schedule, every 15 seconds, folder `demo_certs`; watch Scheduled runs appear; pause it | Periodic scans; one scan at a time, and a due scan is skipped while another is running. |
+| 4:25 | Optional: `python tools\build_agent_pyz.py` then `python dist\qg-agent.pyz --help` | The agent packages into about 50 KB, far below the 5 MB limit. |
+| 4:40 | The README's Known limitations and AI tools sections | No relationship graph yet; TLS is active probing only; the backend has no authentication and stays on loopback; Windows only; AI-assisted development is disclosed. |
+
+Notes: schedule a folder that holds certificates (not an empty one), because the dashboard describes the latest *finished*
+filesystem run and an empty scan would leave its certificate charts empty. If a step fails during a take, stop and restart the
+take rather than explaining around it.
+
 ## Known limitations
 
 Not implemented:
@@ -344,38 +435,67 @@ By design or by nature of the method:
 - Windows only (agent). The backend has no authentication and must stay on loopback.
 - The agent prints "no queued filesystem run" when `--once` finds nothing, although it also handles TLS runs.
 
-## Agent package size
+## Agent package
 
-The agent is 16 Python source files in `agent/` and imports only the standard library. Measured (source only, no bundled
-interpreter, no packaging step): 146,851 bytes of source, **50,647 bytes** zipped, against the 5 MB limit. To measure it again:
+The agent is the 16 Python source files in `agent/` and imports only the standard library, so its package is just that source.
+Build it as one runnable file from the repository root:
 
 ```powershell
-.venv\Scripts\python -c "import io,zipfile,pathlib; b=io.BytesIO(); z=zipfile.ZipFile(b,'w',zipfile.ZIP_DEFLATED); [z.write(p) for p in sorted(pathlib.Path('agent').glob('*.py'))]; z.close(); print(len(b.getvalue()))"
+.venv\Scripts\python tools\build_agent_pyz.py        # needs only Python 3.9 or newer; nothing is installed
 ```
 
-The web app (`frontend/`) and its dependencies are separate from the agent and are not part of that figure.
+It writes `dist\qg-agent.pyz` (ignored by git) and prints the size and SHA-256. Measured with the agent source at this commit:
+**50,590 bytes** (49.4 KiB), about 1 % of the 5 MB (5,242,880 bytes) limit. The script exits with an error and writes nothing if
+the archive would be larger than the limit.
+
+Run it exactly like `python -m agent` (same options, same behavior):
+
+```powershell
+python dist\qg-agent.pyz --help
+python dist\qg-agent.pyz                       # keep running; polls the backend at http://127.0.0.1:8765
+python dist\qg-agent.pyz --once                # process at most one queued run, then exit
+```
+
+- **Contents:** `agent/*.py` and a two-line `__main__.py`. Nothing else: no virtual environment, caches, tests, fixtures, backend
+  or frontend. No dependency and no interpreter is bundled, so running it needs Python 3.11 on the machine (and Windows for the
+  OS-specific parts), as before.
+- **Reproducible:** entries are sorted and carry a fixed timestamp and permissions, and line endings are normalised, so the same
+  source gives the same bytes on any checkout.
+- **Tested** (`tests/tools/`): the archive's exact contents, the size limit, reproducibility, that `--help` and a bad argument
+  behave like `python -m agent`, and a real run: a backend process, a queued scan and the packaged agent finishing it with the same
+  results as `python -m agent`.
+- The web app (`frontend/`) and the backend are separate from the agent and are not part of that figure.
 
 ## Testing
 
 ```powershell
-.venv\Scripts\python -m pytest -q          # agent and backend tests: 3,628 tests
+.venv\Scripts\python -m pytest -q          # agent, backend and tools tests: 3,891 tests (about 5 minutes)
 cd frontend
 npm run typecheck                          # tsc --noEmit
-npm test                                   # vitest run
+npm test                                   # vitest run: 588 tests
 npm run build                              # type-check, then production build into frontend/dist
 cd ..
 git diff --check                           # whitespace check of uncommitted changes
 ```
 
 Some tests start real loopback servers (a backend, local TLS and plain-text listeners) and run the backend and agent as
-separate processes; they use temporary folders and databases and nothing outside the test run.
+separate processes; they use temporary folders and databases and nothing outside the test run. The test counts above are from the
+last full run before this README was committed; a few tests (PKCS#12 handling) call the real Windows PowerShell, see below.
 
 What has and has not been verified:
 - Verified by automated tests: the agent, ingestion, run lifecycle, report API and UI behavior above, including that
   private-key material and raw certificate bytes do not reach the database or API responses.
-- Verified by scripted (automated) headless-browser checks against a live backend, agent and Vite server during development:
-  the runs list, filesystem report and TLS report.
-- Not verified: a clean-machine install following this README, other Windows versions, and manual testing by a person in
-  a browser for every screen.
+- Verified by scripted (automated) headless-Chrome checks against a live backend, agent and Vite server during development:
+  the runs list, both scan forms, filesystem and TLS reports, the relationships table and its states, scheduling, error and retry
+  paths, and the dashboard (every drawn number compared with the API's). These were run by a script, not by a person.
+- Verified once in a fresh environment (a copy of the committed files, a new virtual environment and `npm ci` from the lockfile,
+  on the same Windows 11 machine, with Python 3.11.4, Node 20.17.0 and npm 10.8.2): the setup commands in Quick start, building
+  the agent package, and starting the backend, agent and UI with the documented commands. See the next bullets for what that does
+  not cover.
+- Not verified: a clean *machine* (the fresh environment shared this computer's Python, Node and PowerShell), other Windows
+  versions, other browsers, and manual testing by a person in a browser for every screen.
 - At an earlier stage of development one full-suite run had a single failing test (1 failed, 2912 passed) whose cause was
-  never identified. Later full runs passed, but that failure is not considered explained or resolved.
+  never identified. Later full runs passed, but that failure is not considered explained or resolved. Since then single tests
+  that call the real Windows PowerShell for PKCS#12 files (in `tests/agent/test_pfx_bridge_windows.py` and
+  `test_fs_scan_pfx.py`) failed once each in separate full runs and passed on every rerun, including six isolated reruns of
+  the affected tests; the cause was not found, and this may be the same intermittent problem.
